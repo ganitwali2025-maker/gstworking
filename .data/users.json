@@ -1,0 +1,14 @@
+[
+  {
+    "id": "usr_admin_001",
+    "name": "Sharma Traders Admin",
+    "email": "admin@sharmatraders.com",
+    "passwordHash": "8721cce53e117e4e5d7eb8e72012a292e560e1afc56a434363146b289659128c",
+    "salt": "gst_salt_2026",
+    "gstin": "22AAAAA0000A1Z5",
+    "businessName": "Sharma Traders",
+    "state": "Chhattisgarh",
+    "role": "ADMIN",
+    "createdAt": "2026-11-20T07:59:05.932Z"
+  }
+]

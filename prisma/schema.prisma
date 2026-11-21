@@ -1,0 +1,147 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id               String            @id @default(uuid())
+  name             String
+  email            String            @unique
+  passwordHash     String
+  gstin            String?
+  businessName     String?
+  state            String?
+  role             Role              @default(USER)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  salesInvoices    SalesInvoice[]
+  purchaseInvoices PurchaseInvoice[]
+  rcmRecords       RcmRecord[]
+  gstr2bRecords    Gstr2bRecord[]
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model SalesInvoice {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month          Int
+  quarter        Int
+  financialYear  String
+  invoiceDate    DateTime
+  partyName      String
+  gstin          String?
+  invoiceNo      String
+  taxableValue   Decimal  @db.Decimal(15, 2)
+  igst           Decimal  @db.Decimal(15, 2)
+  cgst           Decimal  @db.Decimal(15, 2)
+  sgst           Decimal  @db.Decimal(15, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([month, financialYear])
+  @@map("sales_invoices")
+}
+
+model PurchaseInvoice {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month          Int
+  quarter        Int
+  financialYear  String
+  invoiceDate    DateTime
+  partyName      String
+  gstin          String?
+  supplierGstin  String?
+  invoiceNo      String
+  taxableValue   Decimal  @db.Decimal(15, 2)
+  igst           Decimal  @db.Decimal(15, 2)
+  cgst           Decimal  @db.Decimal(15, 2)
+  sgst           Decimal  @db.Decimal(15, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([month, financialYear])
+  @@map("purchase_invoices")
+}
+
+model RcmRecord {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supplierName    String
+  gstin           String?
+  expenseCategory String
+  invoiceDate     DateTime
+  taxableValue    Decimal  @db.Decimal(15, 2)
+  taxRate         Decimal  @db.Decimal(5, 2)
+  igst            Decimal  @db.Decimal(15, 2)
+  cgst            Decimal  @db.Decimal(15, 2)
+  sgst            Decimal  @db.Decimal(15, 2)
+  eligibleItc     Decimal  @db.Decimal(15, 2)
+  month           Int
+  quarter         Int
+  financialYear   String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([month, financialYear])
+  @@map("rcm_records")
+}
+
+model Gstr2bRecord {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  supplierGstin  String
+  supplierName   String
+  invoiceNo      String
+  invoiceDate    DateTime
+  taxableValue   Decimal  @db.Decimal(15, 2)
+  igst           Decimal  @db.Decimal(15, 2)
+  cgst           Decimal  @db.Decimal(15, 2)
+  sgst           Decimal  @db.Decimal(15, 2)
+  itcEligibility String   @default("Eligible")
+  month          Int
+  quarter        Int
+  financialYear  String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([month, financialYear])
+  @@map("gstr2b_records")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  tableName String
+  recordId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tableName])
+  @@map("audit_logs")
+}

@@ -1,0 +1,19 @@
+[
+  {
+    "id": "rcm_401",
+    "month": "April",
+    "quarter": "Q1",
+    "financialYear": "2026-27",
+    "invoiceDate": "2026-04-10",
+    "supplierName": "Commercial Office Landlord",
+    "gstin": "",
+    "expenseCategory": "Commercial Rent",
+    "taxRate": 18,
+    "taxableValue": 50000,
+    "igst": 0,
+    "cgst": 4500,
+    "sgst": 4500,
+    "eligibleItc": 9000,
+    "createdAt": "2026-04-10T12:00:00Z"
+  }
+]

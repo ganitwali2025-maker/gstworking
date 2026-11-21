@@ -1,0 +1,32 @@
+[
+  {
+    "id": "inv_101",
+    "month": "April",
+    "quarter": "Q1",
+    "financialYear": "2026-27",
+    "invoiceDate": "2026-04-12",
+    "partyName": "Apex Industrial Corp",
+    "gstin": "22ABCDE1234F1Z5",
+    "invoiceNo": "SAL/2026/001",
+    "taxableValue": 182000,
+    "igst": 18200,
+    "cgst": 0,
+    "sgst": 0,
+    "createdAt": "2026-04-12T10:00:00Z"
+  },
+  {
+    "id": "inv_102",
+    "month": "April",
+    "quarter": "Q1",
+    "financialYear": "2026-27",
+    "invoiceDate": "2026-04-18",
+    "partyName": "Raipur Steel Works",
+    "gstin": "22XYZPA9876Q1Z9",
+    "invoiceNo": "SAL/2026/002",
+    "taxableValue": 120000,
+    "igst": 0,
+    "cgst": 10800,
+    "sgst": 10800,
+    "createdAt": "2026-04-18T14:30:00Z"
+  }
+]

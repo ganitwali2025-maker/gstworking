@@ -1,0 +1,18 @@
+[
+  {
+    "id": "g2b_301",
+    "month": "April",
+    "quarter": "Q1",
+    "financialYear": "2026-27",
+    "invoiceDate": "2026-04-05",
+    "supplierName": "Bharat Raw Materials Ltd",
+    "supplierGstin": "27AABCB1234D1ZP",
+    "invoiceNo": "BRM/901",
+    "taxableValue": 140000,
+    "igst": 14000,
+    "cgst": 0,
+    "sgst": 0,
+    "itcEligibility": "Eligible",
+    "createdAt": "2026-04-05T09:00:00Z"
+  }
+]
