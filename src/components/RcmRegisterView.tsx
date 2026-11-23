@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { fm, fmtVal, dmySlash, inr, pp, iso } from '../utils/gstFormat';
 import { updateQueryParams } from '../utils/router';
 import RcmImportModal from './RcmImportModal';
+import { HeadingSearchBar } from './HeadingTemplate';
 import { syncModuleToSheets } from '../services/sheetSync';
 import {
   REGISTER_TABS,
@@ -115,6 +116,7 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [pastRecords, setPastRecords] = useState<RcmRecord[][]>([]);
   const [futureRecords, setFutureRecords] = useState<RcmRecord[][]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Month & FY options
@@ -210,10 +212,10 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
     }
   };
 
-  // Step 4: Filter records strictly by selected FY and Month (NEVER by invoice date!)
+  // Step 4: Filter records strictly by selected FY, Month and Search Query
   const displayRecords = useMemo(() => {
-    return filterRegisterRows(records, selectedFy, selectedMonth);
-  }, [records, selectedFy, selectedMonth]);
+    return filterRegisterRows(records, selectedFy, selectedMonth, searchQuery);
+  }, [records, selectedFy, selectedMonth, searchQuery]);
 
   const pushHistory = (prev: RcmRecord[]) => {
     setPastRecords((p) => [...p.slice(-25), prev]);
@@ -581,6 +583,13 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
 
           {/* Action Buttons */}
           <div className="gstr1-btn-group">
+            {/* Common Heading Template Search Bar */}
+            <HeadingSearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search RCM (Transporter, LR No, GSTIN)..."
+            />
+
             <button
               type="button"
               className="btn-gstr1 btn-lock"
@@ -738,9 +747,29 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
                       <span>
                         {records.length === 0
                           ? 'No rows found. Click “Import” to load records.'
+                          : searchQuery.trim()
+                          ? `No matching entries found for "${searchQuery}".`
                           : `No entries for ${selectedMonth !== 'ALL' ? selectedMonth : ''} ${selectedFy !== 'ALL' ? selectedFy : ''}.`}
                       </span>
-                      {(selectedMonth !== 'ALL' || selectedFy !== 'ALL') && (
+                      {searchQuery.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          style={{
+                            padding: '4px 12px',
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            color: '#350B5E',
+                            fontWeight: 600
+                          }}
+                        >
+                          Clear Search
+                        </button>
+                      )}
+                      {!searchQuery.trim() && (selectedMonth !== 'ALL' || selectedFy !== 'ALL') && (
                         <button
                           type="button"
                           onClick={() => {

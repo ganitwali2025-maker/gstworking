@@ -5,6 +5,7 @@ import { inr, dmy, pp, iso, fmtVal, dmySlash, FYS } from '../utils/gstFormat';
 import { updateQueryParams } from '../utils/router';
 import Modal from './Modal';
 import Gstr1ImportModal from './Gstr1ImportModal';
+import { HeadingSearchBar } from './HeadingTemplate';
 import { filterRegisterRows, shiftG2bRowsFromGstr1 } from '../services/registerService';
 
 interface TaxRegisterViewProps {
@@ -94,6 +95,7 @@ export default function TaxRegisterView({
 
   const selectedFy = fy || 'ALL';
   const selectedMonth = month || 'ALL';
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
@@ -108,8 +110,8 @@ export default function TaxRegisterView({
     shiftG2bRowsFromGstr1();
   }, []);
 
-  // Step 4: Filter invoices strictly by selected FY and Month (NEVER by invoice date!)
-  const displayInvoices = filterRegisterRows(invoices, selectedFy, selectedMonth);
+  // Step 4: Filter invoices strictly by selected FY, Month and Search Query
+  const displayInvoices = filterRegisterRows(invoices, selectedFy, selectedMonth, searchQuery);
 
   // Compute live visible summary stats
   const totalTaxable = displayInvoices.reduce((acc, r) => acc + (r.t || 0), 0);
@@ -494,6 +496,13 @@ export default function TaxRegisterView({
 
           {/* Action Buttons & Period Selectors */}
           <div className="gstr1-btn-group">
+            {/* Common Heading Template Search Bar */}
+            <HeadingSearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search GSTR-1 (GSTIN, Party, Inv No)..."
+            />
+
             <button
               type="button"
               className="btn-gstr1 btn-lock"
@@ -672,9 +681,30 @@ export default function TaxRegisterView({
                       <span>
                         {invoices.length === 0
                           ? 'No invoices in register. Click “Import” to load records.'
+                          : searchQuery.trim()
+                          ? `No matching invoices found for "${searchQuery}".`
                           : `No invoices found matching ${selectedMonth !== 'ALL' ? selectedMonth : ''} ${selectedFy !== 'ALL' ? selectedFy : ''}.`}
                       </span>
-                      {(selectedMonth !== 'ALL' || selectedFy !== 'ALL') && (
+                      {searchQuery.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          style={{
+                            marginTop: '4px',
+                            padding: '4px 12px',
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            color: '#350B5E',
+                            fontWeight: 600
+                          }}
+                        >
+                          Clear Search
+                        </button>
+                      )}
+                      {!searchQuery.trim() && (selectedMonth !== 'ALL' || selectedFy !== 'ALL') && (
                         <button
                           type="button"
                           onClick={() => {

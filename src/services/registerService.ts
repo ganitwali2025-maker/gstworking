@@ -115,9 +115,10 @@ export function derivePeriodFromMonth(
 export function filterRegisterRows<T extends { m?: string; month?: string; fy?: string; financialYear?: string }>(
   rows: T[],
   selectedFy: string,
-  selectedMonth: string
+  selectedMonth: string,
+  searchQuery?: string
 ): T[] {
-  return (rows || []).filter((r) => {
+  return (rows || []).filter((r: any) => {
     // 1. FY Filter
     if (selectedFy && selectedFy !== 'ALL') {
       const rowFy = r.fy || r.financialYear || '';
@@ -131,6 +132,21 @@ export function filterRegisterRows<T extends { m?: string; month?: string; fy?: 
       const targetMon = normalizeMonth(selectedMonth);
       const rowMon = normalizeMonth(r.m || r.month || '');
       if (rowMon !== targetMon) {
+        return false;
+      }
+    }
+
+    // 3. Search Query Filter across GSTIN, Party/Supplier/Transporter Name, Inv/Voucher/LR No, Date, Type/Category
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const match =
+        String(r.gstin || r.g || r.gstNo || '').toLowerCase().includes(q) ||
+        String(r.party || r.tradeName || r.p || r.transporter || r.supplierName || '').toLowerCase().includes(q) ||
+        String(r.invNo || r.n || r.lrNo || r.voucherNo || '').toLowerCase().includes(q) ||
+        String(r.d || r.date || r.entryDate || '').toLowerCase().includes(q) ||
+        String(r.category || r.type || r.invType || r.itcInput || '').toLowerCase().includes(q);
+
+      if (!match) {
         return false;
       }
     }

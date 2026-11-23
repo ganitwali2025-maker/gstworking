@@ -3,6 +3,7 @@ import { fmtVal, dmySlash, inr, pp } from '../utils/gstFormat';
 import { updateQueryParams } from '../utils/router';
 import { syncModuleToSheets } from '../services/sheetSync';
 import Gstr2bImportModal from './Gstr2bImportModal';
+import { HeadingSearchBar } from './HeadingTemplate';
 import {
   REGISTER_TABS,
   STANDARD_SHEET_HEADERS,
@@ -135,6 +136,7 @@ export default function Gstr2bRegisterView({
   const [modalOpen, setModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
     message: string;
@@ -246,10 +248,10 @@ export default function Gstr2bRegisterView({
     }
   };
 
-  // Step 4: Filter display records strictly by selected FY and Month (NEVER by invoice date!)
+  // Step 4: Filter display records strictly by selected FY, Month and Search Query
   const displayRecords = useMemo(() => {
-    return filterRegisterRows(records, selectedFy, selectedMonth);
-  }, [records, selectedFy, selectedMonth]);
+    return filterRegisterRows(records, selectedFy, selectedMonth, searchQuery);
+  }, [records, selectedFy, selectedMonth, searchQuery]);
 
   // KPI calculations based on filtered records
   const totalTaxable = displayRecords.reduce((acc, r) => acc + (r.taxable || 0), 0);
@@ -635,6 +637,13 @@ export default function Gstr2bRegisterView({
 
           {/* Action Buttons */}
           <div className="gstr1-btn-group">
+            {/* Common Heading Template Search Bar */}
+            <HeadingSearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search 2B (GSTIN, Supplier, Inv No)..."
+            />
+
             <button
               type="button"
               className="btn-gstr1 btn-lock"
@@ -785,9 +794,29 @@ export default function Gstr2bRegisterView({
                       <span>
                         {records.length === 0
                           ? 'No invoices in register. Click “Import” to load records.'
+                          : searchQuery.trim()
+                          ? `No matching invoices found for "${searchQuery}".`
                           : `No invoices for ${selectedMonth !== 'ALL' ? selectedMonth : ''} ${selectedFy !== 'ALL' ? selectedFy : ''}.`}
                       </span>
-                      {(selectedMonth !== 'ALL' || selectedFy !== 'ALL') && (
+                      {searchQuery.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          style={{
+                            padding: '4px 12px',
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            color: '#350B5E',
+                            fontWeight: 600
+                          }}
+                        >
+                          Clear Search
+                        </button>
+                      )}
+                      {!searchQuery.trim() && (selectedMonth !== 'ALL' || selectedFy !== 'ALL') && (
                         <button
                           type="button"
                           onClick={() => {
