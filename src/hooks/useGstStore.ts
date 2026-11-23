@@ -3,8 +3,8 @@ import { ViewType, InvoiceRecord, StepItem, BusinessSettings } from '../types/gs
 import { SEED_MONTHLY_DATA, SEED_STEPS, SEED_SETTINGS, SEED_INVOICES, SEED_RCM } from '../data/seedData';
 import { FYS } from '../utils/gstFormat';
 import { getViewFromPath, navigateTo, getQueryParams } from '../utils/router';
-import { syncModuleToSheets } from '../services/sheetSync';
-import { STANDARD_SHEET_HEADERS, mapRowToSheetRow } from '../services/registerService';
+import { syncModuleToSheets, readModuleFromSheets } from '../services/sheetSync';
+import { STANDARD_SHEET_HEADERS, mapRowToSheetRow, mapSheetRowToAppRecord } from '../services/registerService';
 
 const LOCAL_STORAGE_KEY_INVOICES = 'gstr1_register_v4';
 const LOCAL_STORAGE_KEY_LOCK = 'gstr1_lock_v1';
@@ -97,9 +97,9 @@ export function useGstStore() {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_INVOICES);
-      return saved ? JSON.parse(saved) : SEED_INVOICES;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return SEED_INVOICES;
+      return [];
     }
   });
 
@@ -218,26 +218,30 @@ export function useGstStore() {
     } catch (e) {}
   };
 
-  // Sync with API when available
+  // Sync with API / Google Sheets when available
   const fetchApiInvoices = async () => {
     try {
       const res = await fetch('/api/invoices');
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          setInvoices((prev) => {
-            const backendIds = new Set(json.data.map((r: InvoiceRecord) => r.id));
-            const unsyncedLocal = prev.filter((r) => !backendIds.has(r.id));
-            const merged = [...json.data, ...unsyncedLocal];
-            persistInvoices(merged, !!json.locked);
-            return merged;
-          });
+          setInvoices(json.data);
+          persistInvoices(json.data, !!json.locked);
           setIsLocked(!!json.locked);
+          return;
         }
       }
-    } catch (e) {
-      // Backend offline or running standalone
-    }
+    } catch (e) {}
+
+    // Direct fallback to Google Sheets Web App (crucial on Vercel)
+    try {
+      const sheetRes = await readModuleFromSheets('GSTR-1');
+      if (sheetRes.success && Array.isArray(sheetRes.rows)) {
+        const mapped = sheetRes.rows.map((r: any) => mapSheetRowToAppRecord(r.values || r, 'GSTR-1')).filter(Boolean);
+        setInvoices(mapped);
+        persistInvoices(mapped, false);
+      }
+    } catch (_) {}
   };
 
   const fetchApiSteps = async () => {
@@ -349,6 +353,16 @@ export function useGstStore() {
         }
       }
     } catch (e) {}
+
+    // Ensure deleted directly from Google Sheets
+    try {
+      await syncModuleToSheets({
+        action: 'delete',
+        sheet: 'GSTR-1',
+        headers: STANDARD_SHEET_HEADERS,
+        ids: [id]
+      });
+    } catch (_) {}
   };
 
   const clearInvoices = async (targetFy?: string, targetMonth?: string) => {

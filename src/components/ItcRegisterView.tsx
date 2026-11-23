@@ -116,9 +116,9 @@ export default function ItcRegisterView({ showToast, fy: _fyProp }: ItcRegisterV
   const [records, setRecords] = useState<ItcPurchaseRecord[]>(() => {
     try {
       const saved = localStorage.getItem('itc_register_v1');
-      return saved ? JSON.parse(saved) : SEED_ITC_RECORDS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return SEED_ITC_RECORDS;
+      return [];
     }
   });
 
@@ -256,8 +256,8 @@ export default function ItcRegisterView({ showToast, fy: _fyProp }: ItcRegisterV
 
   // Step 5: Load data for ITC-Purchase tab on initial mount
   useEffect(() => {
-    loadRegisterRows<ItcPurchaseRecord>(REGISTER_TABS.ITC_PURCHASE, SEED_ITC_RECORDS).then((res) => {
-      if (res.rows && res.rows.length > 0) {
+    loadRegisterRows<ItcPurchaseRecord>(REGISTER_TABS.ITC_PURCHASE, []).then((res) => {
+      if (res.rows) {
         setRecords(res.rows);
       }
     });

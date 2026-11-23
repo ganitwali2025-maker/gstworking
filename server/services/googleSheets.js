@@ -66,20 +66,15 @@ function ensureEnvLoaded() {
   }
 }
 
-let warnedMissingConfig = false;
+// Default Apps Script credentials (used automatically if .env is missing, e.g. on Vercel)
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby-lHw-wHVBXrS0SsuJ0iBeB96Ve_Zd_CGx3KvUJZQ7lvO32QSrkREr1V7xC_E9eK3X/exec';
+const DEFAULT_APPS_SCRIPT_SECRET = 'MY_GST_SECRET_KEY_123';
 
 function getConfig() {
   ensureEnvLoaded();
-  const url = process.env.APPS_SCRIPT_URL?.trim();
-  const secret = process.env.APPS_SCRIPT_SECRET?.trim();
+  const url = process.env.APPS_SCRIPT_URL?.trim() || DEFAULT_APPS_SCRIPT_URL;
+  const secret = process.env.APPS_SCRIPT_SECRET?.trim() || DEFAULT_APPS_SCRIPT_SECRET;
 
-  if (!url || !secret) {
-    if (!warnedMissingConfig) {
-      console.warn('[GoogleSheets] APPS_SCRIPT_URL or APPS_SCRIPT_SECRET not configured. Skipping Google Sheets sync.');
-      warnedMissingConfig = true;
-    }
-    return null;
-  }
   return { url, secret };
 }
 
@@ -214,6 +209,8 @@ async function sendToAppsScript(payload) {
       ok: Boolean(json.ok),
       count: json.count || 0,
       shiftedCount: json.shiftedCount || 0,
+      rows: json.rows || [],
+      headers: json.headers || [],
       error: json.error || null
     };
   } catch (err) {
@@ -233,6 +230,8 @@ async function sendToAppsScript(payload) {
             ok: Boolean(retryJson.ok),
             count: retryJson.count || 0,
             shiftedCount: retryJson.shiftedCount || 0,
+            rows: retryJson.rows || [],
+            headers: retryJson.headers || [],
             error: retryJson.error || null
           };
         }
@@ -417,6 +416,109 @@ export async function shiftG2bFromGstr1(knownG2bRows = []) {
   return scriptRes;
 }
 
+/**
+ * Read all rows from specified sheet tab
+ */
+export async function readSheet(options = {}) {
+  const targetSheet = options.sheet || REGISTER_TABS.GSTR1;
+  const payload = {
+    action: 'read',
+    sheet: targetSheet
+  };
+  return await sendToAppsScript(payload);
+}
+
+/**
+ * Universal mapper from Google Sheet row array to application record
+ */
+export function mapSheetRowToRecord(values, tabName = 'GSTR-1') {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const id = String(values[0] || '').trim();
+  if (!id) return null;
+
+  const fy = String(values[1] || 'FY 2026–27').trim();
+  const q = String(values[2] || '').trim();
+  const m = String(values[3] || '').trim();
+  const rawDate = String(values[4] || '').trim();
+  let d = rawDate;
+  if (rawDate.includes('T')) {
+    d = rawDate.split('T')[0];
+  } else if (rawDate.includes('/')) {
+    // DD/MM/YYYY -> YYYY-MM-DD
+    const parts = rawDate.split('/');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        d = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      } else {
+        d = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+    }
+  }
+
+  const p = String(values[5] || '').trim();
+  const g = String(values[6] || '').trim().toUpperCase();
+  const isGstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i;
+  const cleanParty = (isGstRegex.test(p) && (p.toUpperCase() === g || !g)) ? '' : p;
+  const n = String(values[7] || '').trim();
+
+  // Values in Google Sheets are in Rupees. In registers, amounts are stored in paise (multiplied by 100)
+  const invValRupees = Number(values[8]) || 0;
+  const taxableRupees = Number(values[9]) || 0;
+  const igstRupees = Number(values[10]) || 0;
+  const cgstRupees = Number(values[11]) || 0;
+  const sgstRupees = Number(values[12]) || 0;
+  const cessRupees = Number(values[13]) || 0;
+
+  const invValPaise = Math.round(invValRupees * 100);
+  const taxablePaise = Math.round(taxableRupees * 100);
+  const igstPaise = Math.round(igstRupees * 100);
+  const cgstPaise = Math.round(cgstRupees * 100);
+  const sgstPaise = Math.round(sgstRupees * 100);
+  const cessPaise = Math.round(cessRupees * 100);
+
+  const baseRecord = {
+    id,
+    fy,
+    q,
+    m,
+    d,
+    p: cleanParty,
+    tradeName: cleanParty,
+    partyName: cleanParty,
+    supplierName: cleanParty,
+    transporter: cleanParty,
+    g,
+    gstin: g,
+    gstNo: g,
+    n,
+    invNo: n,
+    lrNo: n,
+    invVal: invValPaise,
+    totalInvoiceValue: invValPaise,
+    taxable: taxablePaise,
+    taxableValue: taxablePaise,
+    t: taxablePaise,
+    amount: taxablePaise,
+    igst: igstPaise,
+    i: igstPaise,
+    cgst: cgstPaise,
+    c: cgstPaise,
+    sgst: sgstPaise,
+    s: sgstPaise,
+    cess: cessPaise,
+    sheetSynced: true
+  };
+
+  if (tabName === REGISTER_TABS.RCM) {
+    baseRecord.rcmCategory = String(values[15] || 'Transport (GTA)');
+    baseRecord.rcmTaxRate = Number(values[16]) || 5;
+    baseRecord.rcmApplicable = String(values[17] || 'Yes');
+    baseRecord.eligibleItc = values[18] !== undefined ? Math.round(Number(values[18]) * 100) : (igstPaise + cgstPaise + sgstPaise);
+  }
+
+  return baseRecord;
+}
+
 export default {
   STANDARD_SHEET_HEADERS,
   RCM_SHEET_HEADERS,
@@ -424,7 +526,9 @@ export default {
   getHeadersForTab,
   mapRecordToSheetRow,
   mapInvoiceToSheetRow,
+  mapSheetRowToRecord,
   ensureAllTabs,
+  readSheet,
   upsertRows,
   upsertGenericRows,
   deleteRows,

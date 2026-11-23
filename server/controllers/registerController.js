@@ -68,12 +68,33 @@ export const derivePeriodFromMonth = (monthStr, fallbackFy = 'FY 2026–27') => 
 
 /**
  * Get register rows filtered strictly by FY and Month (Step 4 & Step 5)
+ * Fetches live data from Google Sheet tab if available, falling back to local DB cache
  */
-export const getRegisterRows = (req, res) => {
+export const getRegisterRows = async (req, res) => {
   try {
     const tabName = normalizeTabName(req.params.tabName);
     const db = getDb();
-    const rows = db.registers?.[tabName] || [];
+    let rows = db.registers?.[tabName] || [];
+
+    // Attempt live fetch from Google Sheet tab (Single Source of Truth)
+    try {
+      const sheetRes = await googleSheets.readSheet({ sheet: tabName });
+      if (sheetRes && sheetRes.ok && Array.isArray(sheetRes.rows)) {
+        const liveRows = sheetRes.rows
+          .map((r) => googleSheets.mapSheetRowToRecord(r.values || r, tabName))
+          .filter(Boolean);
+
+        rows = liveRows;
+        if (!db.registers) db.registers = {};
+        db.registers[tabName] = liveRows;
+        if (tabName === REGISTER_TABS.GSTR1) {
+          db.invoices = liveRows;
+        }
+        saveDb(db);
+      }
+    } catch (sheetErr) {
+      console.warn(`[RegisterController] Live sheet fetch failed for ${tabName}, using local cache:`, sheetErr.message);
+    }
 
     const { fy, m } = req.query;
     let filtered = [...rows];
@@ -241,19 +262,14 @@ export const deleteRegisterRow = async (req, res) => {
     }
 
     const rows = db.registers?.[tabName] || [];
-    const initialLen = rows.length;
     const filtered = rows.filter((r) => r.id !== id);
-
-    if (filtered.length === initialLen) {
-      return res.status(404).json({ success: false, message: 'Record not found.' });
-    }
 
     db.registers[tabName] = filtered;
     if (tabName === REGISTER_TABS.GSTR1) {
       db.invoices = filtered;
     }
 
-    // Attempt Google Sheets Delete
+    // Always attempt Google Sheets Delete
     let sheetWarning = null;
     try {
       const sheetRes = await googleSheets.deleteRows([id], { sheet: tabName });

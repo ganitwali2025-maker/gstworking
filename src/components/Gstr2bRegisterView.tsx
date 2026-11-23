@@ -107,9 +107,9 @@ export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProp
   const [records, setRecords] = useState<Gstr2bRecord[]>(() => {
     try {
       const saved = localStorage.getItem('gstr2b_register_v1');
-      return saved ? JSON.parse(saved) : SEED_GSTR2B_RECORDS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return SEED_GSTR2B_RECORDS;
+      return [];
     }
   });
 
@@ -251,8 +251,8 @@ export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProp
 
   // Step 5: Load data for GSTR-2B tab on mount
   useEffect(() => {
-    loadRegisterRows<Gstr2bRecord>(REGISTER_TABS.GSTR2B, SEED_GSTR2B_RECORDS).then((res) => {
-      if (res.rows && res.rows.length > 0) {
+    loadRegisterRows<Gstr2bRecord>(REGISTER_TABS.GSTR2B, []).then((res) => {
+      if (res.rows) {
         setRecords(res.rows);
       }
     });

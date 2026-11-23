@@ -7,7 +7,7 @@
  * - Common load, save, delete, clear, import functions parameterized by tabName
  */
 
-import { syncModuleToSheets } from './sheetSync';
+import { syncModuleToSheets, readModuleFromSheets } from './sheetSync';
 
 export type RegisterTabName = 'GSTR-1' | 'ITC-Purchase' | 'RCM' | 'GSTR-2B';
 
@@ -238,7 +238,96 @@ export function getLocalStorageKey(tabName: RegisterTabName): string {
 }
 
 /**
- * Step 5: Common Load data from backend (or fallback localStorage) for a specific tab
+ * Universal mapper from Google Sheet row array to application record
+ */
+export function mapSheetRowToAppRecord(values: any[], tabName: RegisterTabName): any {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const id = String(values[0] || '').trim();
+  if (!id) return null;
+
+  const fy = String(values[1] || 'FY 2026–27').trim();
+  const q = String(values[2] || '').trim();
+  const m = String(values[3] || '').trim();
+  const rawDate = String(values[4] || '').trim();
+  let d = rawDate;
+  if (rawDate.includes('T')) {
+    d = rawDate.split('T')[0];
+  } else if (rawDate.includes('/')) {
+    const parts = rawDate.split('/');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) {
+        d = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      } else {
+        d = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      }
+    }
+  }
+
+  const p = String(values[5] || '').trim();
+  const g = String(values[6] || '').trim().toUpperCase();
+  const isGstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i;
+  const cleanParty = (isGstRegex.test(p) && (p.toUpperCase() === g || !g)) ? '' : p;
+  const n = String(values[7] || '').trim();
+
+  const invValRupees = Number(values[8]) || 0;
+  const taxableRupees = Number(values[9]) || 0;
+  const igstRupees = Number(values[10]) || 0;
+  const cgstRupees = Number(values[11]) || 0;
+  const sgstRupees = Number(values[12]) || 0;
+  const cessRupees = Number(values[13]) || 0;
+
+  const invValPaise = Math.round(invValRupees * 100);
+  const taxablePaise = Math.round(taxableRupees * 100);
+  const igstPaise = Math.round(igstRupees * 100);
+  const cgstPaise = Math.round(cgstRupees * 100);
+  const sgstPaise = Math.round(sgstRupees * 100);
+  const cessPaise = Math.round(cessRupees * 100);
+
+  const baseRecord: any = {
+    id,
+    fy,
+    q,
+    m,
+    d,
+    p: cleanParty,
+    tradeName: cleanParty,
+    partyName: cleanParty,
+    supplierName: cleanParty,
+    transporter: cleanParty,
+    g,
+    gstin: g,
+    gstNo: g,
+    n,
+    invNo: n,
+    lrNo: n,
+    invVal: invValPaise,
+    totalInvoiceValue: invValPaise,
+    taxable: taxablePaise,
+    taxableValue: taxablePaise,
+    t: taxablePaise,
+    amount: taxablePaise,
+    igst: igstPaise,
+    i: igstPaise,
+    cgst: cgstPaise,
+    c: cgstPaise,
+    sgst: sgstPaise,
+    s: sgstPaise,
+    cess: cessPaise,
+    sheetSynced: true
+  };
+
+  if (tabName === 'RCM') {
+    baseRecord.rcmCategory = String(values[15] || 'Transport (GTA)');
+    baseRecord.rcmTaxRate = Number(values[16]) || 5;
+    baseRecord.rcmApplicable = String(values[17] || 'Yes');
+    baseRecord.eligibleItc = values[18] !== undefined ? Math.round(Number(values[18]) * 100) : (igstPaise + cgstPaise + sgstPaise);
+  }
+
+  return baseRecord;
+}
+
+/**
+ * Step 5: Common Load data from backend (or fallback Google Sheets / localStorage) for a specific tab
  */
 export async function loadRegisterRows<T = any>(
   tabName: RegisterTabName,
@@ -250,62 +339,48 @@ export async function loadRegisterRows<T = any>(
     const saved = localStorage.getItem(storageKey);
     if (saved) {
       localRows = JSON.parse(saved);
-    } else if (tabName === 'ITC-Purchase') {
-      const legacy = localStorage.getItem('purchase_register_v1');
-      if (legacy) {
-        localRows = JSON.parse(legacy);
-        try { localStorage.setItem(storageKey, legacy); } catch {}
-      }
     }
   } catch {}
 
-  if (localRows.length === 0 && fallbackRows.length > 0) {
-    localRows = fallbackRows;
-  }
-
-  // Step 1: Ensure no g2b-... rows remain in GSTR-1
-  if (tabName === 'GSTR-1') {
-    const mixed = localRows.filter((r: any) => String(r.id || '').toLowerCase().startsWith('g2b'));
-    if (mixed.length > 0) {
-      localRows = localRows.filter((r: any) => !String(r.id || '').toLowerCase().startsWith('g2b'));
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(localRows));
-      } catch {}
-
-      // Add to GSTR-2B local store if not present
-      try {
-        const key2b = getLocalStorageKey('GSTR-2B');
-        const existing2b = JSON.parse(localStorage.getItem(key2b) || '[]');
-        const existing2bIds = new Set(existing2b.map((x: any) => x.id));
-        const toAdd = mixed.filter((x: any) => !existing2bIds.has(x.id));
-        if (toAdd.length > 0) {
-          localStorage.setItem(key2b, JSON.stringify([...toAdd, ...existing2b]));
-        }
-      } catch {}
-    }
-  }
-
-  // Attempt backend API fetch
+  // 1. Attempt backend API fetch (which fetches live from Google Sheets)
   try {
     const res = await fetch(`/api/registers/${tabName}`);
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        // Smart merge: preserve any local rows not yet in backend data so unsynced data is never lost
-        const backendIds = new Set(json.data.map((r: any) => r.id));
-        const unsavedLocal = localRows.filter((r: any) => !backendIds.has(r.id));
-        const merged = [...json.data, ...unsavedLocal];
+        // Authoritative data from server / Google Sheets
         try {
-          localStorage.setItem(storageKey, JSON.stringify(merged));
+          localStorage.setItem(storageKey, JSON.stringify(json.data));
         } catch {}
         return {
-          rows: merged as T[],
-          totalCount: merged.length,
+          rows: json.data as T[],
+          totalCount: json.data.length,
           locked: Boolean(json.locked)
         };
       }
     }
   } catch {}
+
+  // 2. Direct fallback to Google Sheets Web App (crucial on Vercel)
+  try {
+    const sheetRes = await readModuleFromSheets(tabName);
+    if (sheetRes.success && Array.isArray(sheetRes.rows)) {
+      const mapped = sheetRes.rows.map((r: any) => mapSheetRowToAppRecord(r.values || r, tabName)).filter(Boolean);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(mapped));
+      } catch {}
+      return {
+        rows: mapped as T[],
+        totalCount: mapped.length,
+        locked: false
+      };
+    }
+  } catch {}
+
+  // 3. Fallback to localStorage or provided initial rows only when completely offline
+  if (localRows.length === 0 && fallbackRows.length > 0) {
+    localRows = fallbackRows;
+  }
 
   return {
     rows: localRows,

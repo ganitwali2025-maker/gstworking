@@ -99,9 +99,9 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
   const [records, setRecords] = useState<RcmRecord[]>(() => {
     try {
       const saved = localStorage.getItem('rcm_register_v1');
-      return saved ? JSON.parse(saved) : SEED_RCM_ROWS;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return SEED_RCM_ROWS;
+      return [];
     }
   });
 
@@ -221,8 +221,8 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
 
   // Step 5: Load data for RCM tab on initial mount
   useEffect(() => {
-    loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM, SEED_RCM_ROWS).then((res) => {
-      if (res.rows && res.rows.length > 0) {
+    loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM, []).then((res) => {
+      if (res.rows) {
         setRecords(res.rows);
       }
     });

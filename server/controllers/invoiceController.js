@@ -53,11 +53,28 @@ export const stampDate = (dateStr, fixedMonth, fixedFy) => {
   };
 };
 
-export const getInvoices = (req, res) => {
+export const getInvoices = async (req, res) => {
   try {
     const db = getDb();
-    const { fy, q, m } = req.query;
     let list = db.invoices || [];
+
+    // Attempt live fetch from Google Sheets GSTR-1 tab
+    try {
+      const sheetRes = await googleSheets.readSheet({ sheet: 'GSTR-1' });
+      if (sheetRes && sheetRes.ok && Array.isArray(sheetRes.rows)) {
+        list = sheetRes.rows
+          .map((r) => googleSheets.mapSheetRowToRecord(r.values || r, 'GSTR-1'))
+          .filter(Boolean);
+        db.invoices = list;
+        if (!db.registers) db.registers = {};
+        db.registers['GSTR-1'] = list;
+        saveDb(db);
+      }
+    } catch (sheetErr) {
+      console.warn('[InvoiceController] Live sheet fetch for GSTR-1 failed, using cache:', sheetErr.message);
+    }
+
+    const { fy, q, m } = req.query;
 
     if (fy && fy !== 'ALL') list = list.filter(r => normalizeFy(r.fy) === normalizeFy(fy));
     if (q && q !== 'ALL') list = list.filter(r => r.q === q);
@@ -270,17 +287,15 @@ export const deleteInvoice = async (req, res) => {
     }
 
     const { id } = req.params;
-    const initialLen = db.invoices.length;
-    db.invoices = db.invoices.filter(x => x.id !== id);
-
-    if (db.invoices.length === initialLen) {
-      return res.status(404).json({ success: false, message: 'Invoice not found.' });
+    db.invoices = (db.invoices || []).filter(x => x.id !== id);
+    if (db.registers && db.registers['GSTR-1']) {
+      db.registers['GSTR-1'] = db.registers['GSTR-1'].filter(x => x.id !== id);
     }
 
-    // Attempt Google Sheets Delete
+    // Always attempt Google Sheets Delete
     let sheetWarning = null;
     try {
-      const sheetRes = await googleSheets.deleteRows([id]);
+      const sheetRes = await googleSheets.deleteRows([id], { sheet: 'GSTR-1' });
       if (!sheetRes.ok && !sheetRes.skipped) {
         sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
       }

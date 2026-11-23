@@ -65,6 +65,19 @@ router.post('/sync', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing sheet name' });
     }
 
+    if (action === 'read') {
+      const result = await googleSheets.readSheet({ sheet });
+      const rawRows = result.rows || [];
+      const mapped = rawRows.map(r => googleSheets.mapSheetRowToRecord(r.values || r, sheet)).filter(Boolean);
+      return res.json({
+        success: Boolean(result.ok),
+        count: mapped.length,
+        rawCount: rawRows.length,
+        rows: mapped,
+        error: result.error || null
+      });
+    }
+
     if (action === 'upsert') {
       const result = await googleSheets.upsertGenericRows({ sheet, headers, rows: rows || [] });
       return res.json({

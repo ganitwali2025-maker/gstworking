@@ -66,50 +66,7 @@ const DEFAULT_DATA = {
     { id: 3, done: false, notes: [] },
     { id: 4, done: false, notes: [] }
   ],
-  invoices: [
-    {
-      id: 'inv-108',
-      fy: '2026-27',
-      q: 'Q2 (Jul-Sep)',
-      m: 'Aug',
-      d: '2026-08-01',
-      p: 'Metalx Corporation (Opc) Private Limited',
-      g: '22AATCM1200E1Z1',
-      n: '108',
-      t: 9900000,
-      i: 0,
-      c: 891000,
-      s: 891000
-    },
-    {
-      id: 'inv-109',
-      fy: '2026-27',
-      q: 'Q2 (Jul-Sep)',
-      m: 'Aug',
-      d: '2026-08-01',
-      p: 'Passary Minerals Madhya PVT. LTD.',
-      g: '22AAHCP9274B1ZI',
-      n: '109',
-      t: 51060000,
-      i: 0,
-      c: 4595400,
-      s: 4595400
-    },
-    {
-      id: 'inv-110',
-      fy: '2026-27',
-      q: 'Q2 (Jul-Sep)',
-      m: 'Aug',
-      d: '2026-08-01',
-      p: 'Passary Minerals Madhya PVT. LTD.',
-      g: '22AAHCP9274B1ZI',
-      n: '110',
-      t: 79680000,
-      i: 0,
-      c: 7171200,
-      s: 7171200
-    }
-  ]
+  invoices: []
 };
 
 export function getDb() {
