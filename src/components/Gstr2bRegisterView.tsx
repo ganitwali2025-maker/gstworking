@@ -101,9 +101,19 @@ export function mapGstr2bToSheetRow(r: Gstr2bRecord): { id: string; values: (str
 
 interface Gstr2bRegisterViewProps {
   showToast?: (msg: string) => void;
+  fy?: string;
+  setFy?: (fy: string) => void;
+  month?: string;
+  setMonth?: (month: string) => void;
 }
 
-export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProps) {
+export default function Gstr2bRegisterView({
+  showToast,
+  fy,
+  setFy,
+  month,
+  setMonth
+}: Gstr2bRegisterViewProps) {
   const [records, setRecords] = useState<Gstr2bRecord[]>(() => {
     try {
       const saved = localStorage.getItem('gstr2b_register_v1');
@@ -172,75 +182,8 @@ export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProp
     return clean.slice(0, 3);
   };
 
-  // State: selectedFy & selectedMonth with URL / storage persistence
-  const [selectedFy, setSelectedFy] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const q = new URLSearchParams(window.location.search).get('fy')?.trim();
-      if (q) {
-        if (q.toUpperCase() === 'ALL') return 'ALL';
-        const matched = allFyOptions.find(
-          (opt) => normalizeFy(opt) === normalizeFy(q) || opt.toLowerCase() === q.toLowerCase()
-        );
-        if (matched) return matched;
-      }
-      const saved = localStorage.getItem('gstr2b_selected_fy')?.trim();
-      if (saved) {
-        if (saved.toUpperCase() === 'ALL') return 'ALL';
-        const matched = allFyOptions.find(
-          (opt) => normalizeFy(opt) === normalizeFy(saved) || opt.toLowerCase() === saved.toLowerCase()
-        );
-        if (matched) return matched;
-      }
-    }
-    return 'ALL';
-  });
-
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const q = new URLSearchParams(window.location.search).get('month')?.trim();
-      if (q) {
-        if (q.toUpperCase() === 'ALL') return 'ALL';
-        const matched = MONTH_OPTIONS.find(
-          (m) => m.value.toLowerCase() === q.toLowerCase() || m.label.toLowerCase() === q.toLowerCase()
-        );
-        if (matched) return matched.value;
-      }
-      const saved = localStorage.getItem('gstr2b_selected_month')?.trim();
-      if (saved) {
-        if (saved.toUpperCase() === 'ALL') return 'ALL';
-        const matched = MONTH_OPTIONS.find(
-          (m) => m.value.toLowerCase() === saved.toLowerCase() || m.label.toLowerCase() === saved.toLowerCase()
-        );
-        if (matched) return matched.value;
-      }
-    }
-    return 'ALL';
-  });
-
-  // Sync selectedFy & selectedMonth with back/forward popstate
-  useEffect(() => {
-    const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const qFy = params.get('fy')?.trim();
-      const qMonth = params.get('month')?.trim();
-      if (qFy) {
-        if (qFy.toUpperCase() === 'ALL') setSelectedFy('ALL');
-        else {
-          const matched = allFyOptions.find((opt) => normalizeFy(opt) === normalizeFy(qFy));
-          if (matched) setSelectedFy(matched);
-        }
-      }
-      if (qMonth) {
-        if (qMonth.toUpperCase() === 'ALL') setSelectedMonth('ALL');
-        else {
-          const matched = MONTH_OPTIONS.find((m) => m.value.toLowerCase() === qMonth.toLowerCase());
-          if (matched) setSelectedMonth(matched.value);
-        }
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [allFyOptions]);
+  const selectedFy = fy || 'ALL';
+  const selectedMonth = month || 'ALL';
 
   const persistRecords = (recs: Gstr2bRecord[]) => {
     setRecords(recs);
@@ -274,22 +217,22 @@ export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProp
     if (records.length > 0) {
       if (selectedFy !== 'ALL') {
         const hasFy = records.some((r) => normalizeFy(r.fy) === normalizeFy(selectedFy));
-        if (!hasFy) {
+        if (!hasFy && setFy) {
           const firstFy = records.find((r) => r.fy)?.fy || 'ALL';
-          setSelectedFy(firstFy);
+          setFy(firstFy);
         }
       }
 
       if (selectedMonth !== 'ALL') {
         const hasMonth = records.some((r) => normalizeMonth(r.m) === normalizeMonth(selectedMonth));
-        if (!hasMonth) {
+        if (!hasMonth && setMonth) {
           const firstMonth = records.find((r) => r.m)?.m;
           const matchedOpt = MONTH_OPTIONS.find((m) => normalizeMonth(m.value) === normalizeMonth(firstMonth || ''));
-          setSelectedMonth(matchedOpt ? matchedOpt.value : 'ALL');
+          setMonth(matchedOpt ? matchedOpt.value : 'ALL');
         }
       }
     }
-  }, [records]);
+  }, [records, selectedMonth]);
 
   const handleRefresh = async () => {
     try {
@@ -545,16 +488,12 @@ export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProp
     const updatedRecords = [...newRecords, ...remaining];
     persistRecords(updatedRecords);
 
-    // Automatically select imported month & FY in top bar
-    if (replaceFy) {
-      setSelectedFy(replaceFy);
-      try { localStorage.setItem('gstr2b_selected_fy', replaceFy); } catch {}
-      updateQueryParams({ fy: replaceFy });
+    // Automatically select imported month & FY in common heading
+    if (replaceFy && setFy) {
+      setFy(replaceFy);
     }
-    if (replaceMonth) {
-      setSelectedMonth(replaceMonth);
-      try { localStorage.setItem('gstr2b_selected_month', replaceMonth); } catch {}
-      updateQueryParams({ month: replaceMonth });
+    if (replaceMonth && setMonth) {
+      setMonth(replaceMonth);
     }
 
     if (counts) {
@@ -694,61 +633,8 @@ export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProp
             </div>
           </div>
 
-          {/* Action Buttons & Dropdowns */}
+          {/* Action Buttons */}
           <div className="gstr1-btn-group">
-            {/* 1. FY Select */}
-            <label className="gstr1-select-wrapper" title="Select Financial Year">
-              <div className="gstr1-select-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                  <line x1="16" y1="2" x2="16" y2="6"></line>
-                  <line x1="8" y1="2" x2="8" y2="6"></line>
-                  <line x1="3" y1="10" x2="21" y2="10"></line>
-                </svg>
-              </div>
-              <span className="gstr1-select-label">FY:</span>
-              <select
-                className="gstr1-select-field"
-                value={selectedFy}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedFy(val);
-                  try { localStorage.setItem('gstr2b_selected_fy', val); } catch {}
-                  updateQueryParams({ fy: val });
-                }}
-              >
-                <option value="ALL">All FY</option>
-                {allFyOptions.map((y) => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </label>
-
-            {/* 2. Month Select */}
-            <label className="gstr1-select-wrapper" title="Select Month">
-              <div className="gstr1-select-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-              </div>
-              <span className="gstr1-select-label">Month:</span>
-              <select
-                className="gstr1-select-field"
-                value={selectedMonth}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedMonth(val);
-                  try { localStorage.setItem('gstr2b_selected_month', val); } catch {}
-                  updateQueryParams({ month: val });
-                }}
-              >
-                {MONTH_OPTIONS.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
-            </label>
-
             <button
               type="button"
               className="btn-gstr1 btn-lock"
@@ -905,8 +791,8 @@ export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProp
                         <button
                           type="button"
                           onClick={() => {
-                            setSelectedMonth('ALL');
-                            setSelectedFy('ALL');
+                            if (setMonth) setMonth('ALL');
+                            if (setFy) setFy('ALL');
                             try {
                               localStorage.removeItem('gstr2b_selected_fy');
                               localStorage.removeItem('gstr2b_selected_month');

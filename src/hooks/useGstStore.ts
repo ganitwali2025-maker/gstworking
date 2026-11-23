@@ -28,7 +28,7 @@ export function useGstStore() {
       const saved = localStorage.getItem('gst_active_fy');
       if (saved) return saved;
     }
-    return FYS[0];
+    return 'ALL';
   });
 
   const [quarter, setQuarter] = useState<string>('');
@@ -40,7 +40,7 @@ export function useGstStore() {
       const saved = localStorage.getItem('gst_active_month');
       if (saved) return saved;
     }
-    return 'Oct 2026';
+    return 'ALL';
   });
 
   const setView = useCallback((nextView: ViewType) => {

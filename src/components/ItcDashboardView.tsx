@@ -14,7 +14,12 @@ export default function ItcDashboardView({ month, setMonth, monthlyData }: ItcDa
     itc: [0, 0, 0],
     rec: { matchRate: 0, booksItc: 0, gstr2bItc: 0, ineligible: 0 }
   };
-  const cur = (monthlyData && (monthlyData[month] || monthlyData[months[months.length - 1]])) || fallbackStats;
+  const cur =
+    (monthlyData &&
+      (monthlyData[month] ||
+        (month !== 'ALL' && Object.entries(monthlyData).find(([k]) => k.toLowerCase().startsWith(month.toLowerCase()))?.[1]) ||
+        monthlyData[months[months.length - 1]])) ||
+    fallbackStats;
 
   const sum = (a: number[]) => (a || []).reduce((x, y) => x + y, 0);
 
@@ -80,7 +85,7 @@ export default function ItcDashboardView({ month, setMonth, monthlyData }: ItcDa
 
           <div className="chart">
             {trend.map((t) => {
-              const isSelected = t.month === month;
+              const isSelected = t.month === month || (month !== 'ALL' && t.month.toLowerCase().startsWith(month.toLowerCase()));
               const liabHeight = (t.liability / maxVal) * 100;
               const itcHeight = (t.itc / maxVal) * 100;
 

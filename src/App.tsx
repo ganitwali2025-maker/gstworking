@@ -67,6 +67,8 @@ export default function App() {
           setView={setView}
           fy={fy}
           setFy={setFy}
+          month={month}
+          setMonth={setMonth}
           onLogout={() => setIsLoggedOut(true)}
           onToggleSidebar={toggleSidebarCollapse}
           isSidebarCollapsed={isSidebarCollapsed}
@@ -130,9 +132,9 @@ export default function App() {
             />
           )}
 
-          {view === 'itc-reg' && <ItcRegisterView showToast={showToast} fy={fy} />}
-          {view === 'rcm' && <RcmRegisterView showToast={showToast} />}
-          {view === 'g2b' && <Gstr2bRegisterView showToast={showToast} />}
+          {view === 'itc-reg' && <ItcRegisterView showToast={showToast} fy={fy} setFy={setFy} month={month} setMonth={setMonth} />}
+          {view === 'rcm' && <RcmRegisterView showToast={showToast} fy={fy} setFy={setFy} month={month} setMonth={setMonth} />}
+          {view === 'g2b' && <Gstr2bRegisterView showToast={showToast} fy={fy} setFy={setFy} month={month} setMonth={setMonth} />}
           {view === 'rec' && <ReconciliationView showToast={showToast} fy={fy} month={month} monthlyData={monthlyData} />}
 
           {!['g1', 'itc-reg', 'rcm', 'g2b', 'rec'].includes(view) && (

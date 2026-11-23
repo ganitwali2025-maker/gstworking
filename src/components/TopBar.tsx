@@ -1,10 +1,13 @@
 import { ViewType } from '../types/gst';
+import HeadingTemplate from './HeadingTemplate';
 
 interface TopBarProps {
   view: ViewType;
   setView: (view: ViewType) => void;
   fy?: string;
   setFy?: (fy: string) => void;
+  month?: string;
+  setMonth?: (month: string) => void;
   onLogout: () => void;
   onToggleSidebar?: () => void;
   isSidebarCollapsed?: boolean;
@@ -14,6 +17,10 @@ interface TopBarProps {
 export default function TopBar({
   view,
   setView,
+  fy,
+  setFy,
+  month,
+  setMonth,
   onLogout,
   onToggleSidebar,
   isSidebarCollapsed
@@ -49,31 +56,38 @@ export default function TopBar({
       <div className="right">
         {/* Inner Register Pages: Show colorful, compact '← Back to Steps' */}
         {['g1', 'itc-reg', 'rcm', 'g2b', 'rec'].includes(view) && (
-          <>
-            <button
-              type="button"
-              className="btn-back-steps"
-              onClick={() => setView('steps')}
-              title="Back to GST Working Steps"
+          <button
+            type="button"
+            className="btn-back-steps"
+            onClick={() => setView('steps')}
+            title="Back to GST Working Steps"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 12 5"></polyline>
-              </svg>
-              <span>Back to Steps</span>
-            </button>
-            <div className="topbar-divider" />
-          </>
+              <line x1="19" y1="12" x2="5" y2="12"></line>
+              <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            <span>Back to Steps</span>
+          </button>
         )}
+
+        {/* Common Heading Template: FY and Month dropdowns for the entire app */}
+        <HeadingTemplate
+          fy={fy}
+          setFy={setFy}
+          month={month}
+          setMonth={setMonth}
+        />
+
+        <div className="topbar-divider" />
 
         <div className="topbar-user-profile">
           <div className="topbar-user-avatar">

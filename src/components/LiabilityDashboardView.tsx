@@ -13,7 +13,12 @@ export default function LiabilityDashboardView({ month, monthlyData }: Liability
     itc: [0, 0, 0],
     rec: { matchRate: 0, booksItc: 0, gstr2bItc: 0, ineligible: 0 }
   };
-  const cur = (monthlyData && (monthlyData[month] || monthlyData[months[months.length - 1]])) || fallbackStats;
+  const cur =
+    (monthlyData &&
+      (monthlyData[month] ||
+        (month !== 'ALL' && Object.entries(monthlyData).find(([k]) => k.toLowerCase().startsWith(month.toLowerCase()))?.[1]) ||
+        monthlyData[months[months.length - 1]])) ||
+    fallbackStats;
 
   const sum = (a: number[]) => (a || []).reduce((x, y) => x + y, 0);
 
