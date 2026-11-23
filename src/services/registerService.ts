@@ -229,7 +229,8 @@ export function mapRowToSheetRow(
   const invVal = invValRaw !== undefined ? (Number(invValRaw) || 0) / divisor : (tNum + totalTax);
 
   const id = String(row.id || '');
-  const fy = String(row.fy || row.financialYear || '');
+  const rawFy = String(row.fy || row.financialYear || '').trim();
+  const fy = (rawFy && rawFy !== 'ALL') ? rawFy : 'FY 2026–27';
   const q = String(row.q || row.quarter || '');
   const m = String(row.m || row.month || '');
   const d = formatDateSlash(row.d || row.invoiceDate || '');

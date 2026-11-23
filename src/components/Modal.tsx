@@ -95,7 +95,8 @@ export default function Modal({
     const computedQ = qOf(dateMi);
     const computedQFormatted = `${computedQ} (${QM_LABEL[computedQ] || ''})`;
 
-    const saveFy = invoice ? invoice.fy : (defaultFy && defaultFy !== 'ALL' ? defaultFy : fy);
+    const rawFy = invoice ? invoice.fy : (defaultFy && defaultFy !== 'ALL' ? defaultFy : fy);
+    const saveFy = (rawFy && rawFy !== 'ALL' && rawFy.trim()) ? rawFy : 'FY 2026–27';
     const saveMonth = invoice ? invoice.m : (defaultMonth && defaultMonth !== 'ALL' ? defaultMonth.slice(0, 3) : computedMonth);
     const saveQ = invoice ? invoice.q : computedQFormatted;
 

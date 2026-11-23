@@ -640,7 +640,7 @@ export default function TaxRegisterView({
                       className={isSelected ? 'selected-row' : ''}
                       onClick={() => setSelectedInvoiceId(r.id)}
                     >
-                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{r.fy}</td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{(r.fy && r.fy !== 'ALL') ? r.fy : 'FY 2026–27'}</td>
                       <td style={{ textAlign: 'center' }}>{quarterDisplay}</td>
                       <td style={{ textAlign: 'center' }}>{monthDisplay}</td>
                       <td style={{ textAlign: 'center' }}>{dmySlash(r.d)}</td>
@@ -723,7 +723,7 @@ export default function TaxRegisterView({
                             padding: '4px 12px',
                             background: '#f1f5f9',
                             border: '1px solid #cbd5e1',
-                            borderRadius: '4px',
+                            borderRadius: '0',
                             fontSize: '12px',
                             cursor: 'pointer',
                             color: '#350B5E',
@@ -750,7 +750,7 @@ export default function TaxRegisterView({
                             padding: '4px 12px',
                             background: '#f1f5f9',
                             border: '1px solid #cbd5e1',
-                            borderRadius: '4px',
+                            borderRadius: '0',
                             fontSize: '12px',
                             cursor: 'pointer',
                             color: '#350B5E',

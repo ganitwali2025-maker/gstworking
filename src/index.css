@@ -18,6 +18,76 @@
 *, *:before, *:after {
   box-sizing: inherit;
 }
+/* =========================================================
+   RECTANGULAR / AAYATAKAR CORNERS (border-radius: 0)
+   Universal sharp square corners override across entire project
+   ========================================================= */
+*,
+*::before,
+*::after,
+button,
+input,
+select,
+textarea,
+.banner,
+.card,
+.reco-card,
+.step-card,
+.step-card-icon-box,
+.step-action-btn,
+.step-note-item,
+.modal-box,
+.import-modal-box,
+.reco-modal-card,
+.reco-header-card,
+.reco-tab,
+.reco-status-pill,
+.reco-search-wrap,
+.btn-reco-action,
+.btn-reco-cancel,
+.reco-act-btn,
+.gstr1-card,
+.gstr1-kpi-card,
+.gstr1-kpi-icon,
+.gstr1-icon-badge,
+.gstr1-search-wrapper,
+.gstr1-select-wrapper,
+.btn-gstr1,
+.btn-back-steps,
+.topbar-logout-btn,
+.import-close-btn,
+.import-dropdowns-row,
+.import-alert-box,
+.import-columns-guide,
+.import-columns-tags span,
+.import-mini-btn,
+.import-textarea,
+.import-preview-section,
+.import-badge,
+.pill-badge,
+.import-btn-cancel,
+.import-btn-submit,
+.chip,
+.out,
+.bar,
+.col,
+.meter,
+.date,
+.badge:not(.circle):not(.round):not(.reco-badge-check) {
+  border-radius: 0 !important;
+}
+
+/* Rule 5: Keep circular items round */
+.topbar-user-avatar,
+.num,
+.reco-badge-check,
+.reco-status-dot,
+.gstr1-search-clear,
+.dot,
+.circle-badge {
+  border-radius: 50% !important;
+}
+
 
 html, body {
   height: 100%;
@@ -112,7 +182,7 @@ aside {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 0;
   transition: opacity 0.15s ease, color 0.15s ease;
   outline: none;
   box-shadow: none;
@@ -126,7 +196,7 @@ aside {
 .logo {
   width: 36px;
   height: 36px;
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--itc);
   color: #fff;
   display: grid;
@@ -143,7 +213,7 @@ aside {
   width: 100%;
   padding: 12px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
   background: none;
   color: var(--mute);
   text-align: left;
@@ -172,7 +242,7 @@ aside {
   padding: 12px 0;
   width: 48px;
   height: 48px;
-  border-radius: 6px;
+  border-radius: 0;
   margin: 0 auto;
 }
 
@@ -210,7 +280,7 @@ aside {
 .chip {
   padding: 8px 12px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--bg);
   font-weight: 500;
   white-space: nowrap;
@@ -226,7 +296,7 @@ select.chip {
   border: 1px solid var(--warn);
   color: var(--warn);
   background: #fff;
-  border-radius: 4px;
+  border-radius: 0;
   font-weight: 600;
 }
 
@@ -244,7 +314,7 @@ select.chip {
   color: #ffffff;
   background: #350B5E;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   cursor: pointer;
   transition: all 0.15s ease-in-out;
@@ -298,7 +368,7 @@ select.chip {
 .topbar-logout-btn {
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: 0;
   background: #E11D48;
   color: #ffffff;
   border: none;
@@ -329,7 +399,7 @@ select.chip {
 }
 
 .banner {
-  border-radius: 4px;
+  border-radius: 0;
   padding: 22px 24px;
   margin-bottom: 16px;
   background: var(--itc);
@@ -339,6 +409,14 @@ select.chip {
   align-items: flex-end;
   gap: 16px;
   flex-wrap: wrap;
+}
+
+.banner.banner-steps {
+  padding: 20px 24px;
+  min-height: 58px;
+  align-items: center;
+  border-radius: 0;
+  margin-bottom: 20px;
 }
 
 .banner h1 {
@@ -362,7 +440,7 @@ select.chip {
 .banner select {
   padding: 9px 12px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0;
   background: #fff;
   color: var(--ink);
   font-weight: 500;
@@ -372,7 +450,7 @@ select.chip {
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0;
   padding: 18px;
 }
 
@@ -414,7 +492,7 @@ select.chip {
 .bar {
   display: flex;
   height: 44px;
-  border-radius: 4px;
+  border-radius: 0;
   overflow: hidden;
   margin: 14px 0 10px;
   background: var(--line);
@@ -443,7 +521,7 @@ select.chip {
   display: inline-block;
   width: 11px;
   height: 11px;
-  border-radius: 3px;
+  border-radius: 0;
   margin-right: 6px;
 }
 
@@ -470,7 +548,7 @@ select.chip {
   border: 0;
   color: var(--mute);
   padding: 4px 2px;
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 .col.on {
@@ -488,7 +566,7 @@ select.chip {
 
 .pair span {
   width: 15px;
-  border-radius: 5px 5px 0 0;
+  border-radius: 0;
   transition: height 0.3s ease;
 }
 
@@ -542,7 +620,7 @@ tfoot td {
 .meter {
   height: 10px;
   background: var(--line);
-  border-radius: 6px;
+  border-radius: 0;
   overflow: hidden;
   margin: 10px 0 4px;
 }
@@ -569,7 +647,7 @@ tfoot td {
   min-width: 58px;
   text-align: center;
   background: var(--liab-soft);
-  border-radius: 4px;
+  border-radius: 0;
   padding: 4px 0;
   font-weight: 700;
   line-height: 1.2;
@@ -582,134 +660,278 @@ tfoot td {
   color: var(--mute);
 }
 
-/* Steps */
-#v-steps {
+/* Steps Container & Cards */
+#v-steps.steps-container {
   font-family: 'Bricolage Grotesque', sans-serif;
+  width: 100%;
 }
 
-.step {
+.steps-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+/* Medium / tablet screen: 2-2 ke group me */
+@media (max-width: 991px) {
+  .steps-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+/* Extra small mobile screen */
+@media (max-width: 580px) {
+  .steps-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+/* Individual Step Card with App-Themed Glow - Rectangular / Aayatakarr */
+.step-card {
   font-family: 'Bricolage Grotesque', sans-serif;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 0;
+  padding: 16px 15px 15px;
   display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--line);
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 275px;
+  position: relative;
+  box-sizing: border-box;
+  /* Neutral by default - no colored glow */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.step b,
-.step span,
-.step small,
-.step button,
-.step .num,
-.step .workplace-text,
-.step .add,
-.step .nr {
-  font-family: 'Bricolage Grotesque', sans-serif;
+/* Mouse hover par hi Purple glow on hoga */
+.step-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(124, 58, 237, 0.55);
+  box-shadow: 0 12px 30px -4px rgba(124, 58, 237, 0.26), 0 4px 14px -2px rgba(124, 58, 237, 0.16);
 }
 
-.step > div > b {
-  font-size: 15.5px;
+.step-card.step-done {
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 4px 18px -2px rgba(16, 185, 129, 0.08);
+}
+
+/* Green Card: Default neutral, Mouse hover par hi Green glow on hoga */
+.step-card.step-card-green {
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.step-card.step-card-green:hover {
+  transform: translateY(-4px);
+  border-color: rgba(22, 163, 74, 0.70) !important;
+  box-shadow: 0 12px 30px -4px rgba(22, 163, 74, 0.35), 0 4px 14px -2px rgba(22, 163, 74, 0.22) !important;
+}
+
+/* Red Card: Default neutral, Mouse hover par hi Red glow on hoga */
+.step-card.step-card-red {
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.step-card.step-card-red:hover {
+  transform: translateY(-4px);
+  border-color: rgba(220, 38, 38, 0.70) !important;
+  box-shadow: 0 12px 30px -4px rgba(220, 38, 38, 0.35), 0 4px 14px -2px rgba(220, 38, 38, 0.22) !important;
+}
+
+/* Top Header: Left Icon Box, Right Step Number */
+.step-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.step-card-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 0;
+  background: #f5f3ff;
+  border: 1px solid rgba(124, 58, 237, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7c3aed;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.10);
+  transition: transform 0.2s ease;
+}
+
+.step-card:hover .step-card-icon-box {
+  transform: scale(1.05);
+  background: #ede9fe;
+}
+
+.step-card-badge {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.01em;
+}
+
+/* Middle Body */
+.step-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.step-card-title {
+  font-size: 14.5px;
   font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+  margin: 0 0 6px 0;
   letter-spacing: -0.01em;
 }
 
-.step small {
-  font-size: 13.5px;
+.step-card-desc-en {
+  font-size: 12px;
+  font-weight: 400;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 0 0 5px 0;
+}
+
+.step-card-desc-hi {
+  font-size: 12.5px;
   font-weight: 500;
+  color: #1e293b;
+  line-height: 1.4;
+  margin: 0 0 12px 0;
 }
 
-.step:last-child {
-  border: 0;
-}
-
-.num {
-  font-family: 'Bricolage Grotesque', sans-serif;
-  font-weight: 800;
-  font-size: 15px;
-  width: 34px;
-  height: 34px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--cash-soft);
-  color: var(--cash);
-  display: grid;
-  place-items: center;
-}
-
-.step.done .num {
-  background: var(--itc);
-  color: #fff;
-}
-
-.step.done > div > b {
-  color: var(--mute);
-}
-
-.step label {
-  margin-left: auto;
+.step-notes-list {
+  margin-top: auto;
+  margin-bottom: 10px;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--mute);
-  font-size: 13px;
-  white-space: nowrap;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.prog {
-  height: 10px;
-  background: rgba(255, 255, 255, 0.28);
-  border-radius: 6px;
-  overflow: hidden;
-  width: 220px;
-  margin-top: 10px;
+.step-note-item {
+  font-size: 11px;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 3px 7px;
+  border-radius: 0;
 }
 
-.prog div {
-  height: 100%;
-  background: #fff;
-  transition: width 0.3s ease;
-}
-
-.act {
-  margin-left: auto;
+/* Bottom Footer */
+.step-card-footer {
+  margin-top: auto;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-  align-self: center;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.workplace-text {
-  font-family: 'Bricolage Grotesque', sans-serif;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--mute);
+.step-workplace-link {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #64748b;
   cursor: pointer;
-  white-space: nowrap;
-  user-select: none;
-  transition: color 0.15s ease;
-}
-
-.workplace-text:hover {
-  color: var(--itc);
-}
-
-.add {
-  font-family: 'Bricolage Grotesque', sans-serif;
-  padding: 8px 16px;
-  background: #350B5E;
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  box-shadow: 0 2px 5px rgba(53, 11, 94, 0.28);
-  white-space: nowrap;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.step-workplace-link:hover {
+  color: #7c3aed;
+  transform: translateX(2px);
+}
+
+/* Dark Purple Action Buttons with Vibrant Purple Glow */
+.step-action-btn {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  width: 100%;
+  height: 38px;
+  border-radius: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
   justify-content: center;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  border: none;
+  letter-spacing: 0.01em;
+  background: linear-gradient(135deg, #4c1d95 0%, #3b0764 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(76, 29, 149, 0.45), 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+}
+
+.step-action-btn:hover {
+  background: linear-gradient(135deg, #3b0764 0%, #2e1065 100%) !important;
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 22px rgba(76, 29, 149, 0.65) !important;
+}
+
+/* Green Action Button */
+.step-action-btn.btn-green {
+  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.40), 0 1px 3px rgba(0, 0, 0, 0.10) !important;
+}
+
+.step-action-btn.btn-green:hover {
+  background: linear-gradient(135deg, #166534 0%, #15803d 100%) !important;
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.60) !important;
+}
+
+/* Red Action Button */
+.step-action-btn.btn-red {
+  background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.40), 0 1px 3px rgba(0, 0, 0, 0.10) !important;
+}
+
+.step-action-btn.btn-red:hover {
+  background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%) !important;
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.60) !important;
+}
+
+.step-card-icon-box.icon-green {
+  background: #ecfdf5 !important;
+  border-color: rgba(16, 185, 129, 0.25) !important;
+  color: #16a34a !important;
+}
+
+.step-card-icon-box.icon-red {
+  background: #fff1f2 !important;
+  border-color: rgba(239, 68, 68, 0.25) !important;
+  color: #dc2626 !important;
+}
+
+.step-action-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(76, 29, 149, 0.35) !important;
+}
+
+.step-action-btn.btn-add-data,
+.step-action-btn.btn-reconcile {
+  background: linear-gradient(135deg, #4c1d95 0%, #3b0764 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(76, 29, 149, 0.45), 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+}
+
+.step-action-btn.btn-add-data:hover,
+.step-action-btn.btn-reconcile:hover {
+  background: linear-gradient(135deg, #3b0764 0%, #2e1065 100%) !important;
+  box-shadow: 0 6px 22px rgba(76, 29, 149, 0.65) !important;
 }
 
 .add:hover {
@@ -742,7 +964,7 @@ tfoot td {
   flex: 1;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0;
   font: inherit;
   background: #fff;
   color: var(--ink);
@@ -751,7 +973,7 @@ tfoot td {
 .ni button {
   padding: 8px 14px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--itc);
   color: #fff;
   font-weight: 600;
@@ -769,7 +991,7 @@ tfoot td {
 .pb select {
   padding: 9px 12px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0;
   background: #fff;
   color: var(--ink);
 }
@@ -791,7 +1013,7 @@ tfoot td {
   border: 1px solid var(--itc);
   background: #fff;
   color: var(--itc);
-  border-radius: 4px;
+  border-radius: 0;
   font-weight: 600;
 }
 
@@ -824,7 +1046,7 @@ tfoot td {
 
 .badge {
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--liab-soft);
   color: var(--warn);
   font-weight: 600;
@@ -898,7 +1120,7 @@ tfoot td {
   border: 1px solid var(--itc);
   background: #fff;
   color: var(--itc);
-  border-radius: 4px;
+  border-radius: 0;
   font-size: 12px;
   font-weight: 600;
 }
@@ -921,7 +1143,7 @@ tfoot td {
 
 .mb {
   background: #fff;
-  border-radius: 4px;
+  border-radius: 0;
   padding: 22px;
   max-width: 640px;
   width: 100%;
@@ -952,7 +1174,7 @@ tfoot td {
   width: 100%;
   padding: 9px 10px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0;
   font: inherit;
   background: #fff;
   color: var(--ink);
@@ -967,7 +1189,7 @@ tfoot td {
 
 .fr button {
   padding: 10px 18px;
-  border-radius: 4px;
+  border-radius: 0;
   border: 1px solid var(--itc);
   background: #fff;
   color: var(--itc);
@@ -1003,7 +1225,7 @@ tfoot td {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0;
   font: inherit;
   background: #fff;
   color: var(--ink);
@@ -1020,7 +1242,7 @@ tfoot td {
 .btn {
   padding: 11px 20px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--itc);
   color: #fff;
   font-weight: 600;
@@ -1047,7 +1269,7 @@ tfoot td {
   background: var(--itc);
   color: #fff;
   padding: 11px 18px;
-  border-radius: 4px;
+  border-radius: 0;
   z-index: 60;
   font-weight: 600;
   max-width: 90vw;
@@ -1091,7 +1313,7 @@ tfoot td {
 .gstr1-kpi-card {
   background: #ffffff;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 14px 16px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   display: flex;
@@ -1108,7 +1330,7 @@ tfoot td {
 .gstr1-kpi-icon {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: 0;
   background: #ede7f6;
   color: #350B5E;
   display: flex;
@@ -1163,7 +1385,7 @@ tfoot td {
 .gstr1-card {
   background: #ffffff;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 0;
   padding: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   flex: 1;
@@ -1189,7 +1411,7 @@ tfoot td {
 .gstr1-icon-badge {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: 0;
   background: #ede7f6;
   color: #350B5E;
   display: flex;
@@ -1229,7 +1451,7 @@ tfoot td {
   box-sizing: border-box;
   background: #ffffff;
   border: 1.5px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 0;
   padding: 0 10px;
   gap: 8px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -1307,7 +1529,7 @@ tfoot td {
   height: 38px;
   min-height: 38px;
   box-sizing: border-box;
-  border-radius: 12px;
+  border-radius: 0;
   background: #ffffff;
   color: #0f172a;
   border: 1.5px solid #e2e8f0;
@@ -1376,7 +1598,7 @@ tfoot td {
   height: 35px;
   min-height: 35px;
   box-sizing: border-box;
-  border-radius: 6px;
+  border-radius: 0;
   font-size: 13px;
   font-weight: 600;
   border: none;
@@ -1468,7 +1690,7 @@ tfoot td {
 /* GSTR-1 Table */
 .gstr1-table-wrapper {
   overflow-x: auto;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid #e2e8f0;
   flex: 1;
   display: flex;
@@ -1559,7 +1781,7 @@ tfoot td {
 
 .row-edit-btn, .row-delete-btn {
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 0;
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
@@ -1640,13 +1862,25 @@ tfoot td {
 .reco-page-container {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  flex: 1;
+}
+
+.reco-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
 }
 
 .reco-header-card {
   background: #FAF8FD;
-  border-radius: 12px;
-  border: 1px solid #EBE4F3;
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid #EBE4F3;
   padding: 16px 20px;
   display: flex;
   justify-content: space-between;
@@ -1664,7 +1898,7 @@ tfoot td {
 .reco-icon-badge {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
+  border-radius: 0;
   background: #350B5E;
   color: #ffffff;
   display: flex;
@@ -1725,7 +1959,7 @@ tfoot td {
   gap: 8px;
   background: #ffffff;
   border: 1px solid #E2E8F0;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0 12px;
   height: 38px;
   width: 260px;
@@ -1758,7 +1992,7 @@ tfoot td {
 .btn-reco-action {
   height: 38px;
   padding: 0 16px;
-  border-radius: 8px;
+  border-radius: 0;
   background: #350B5E;
   color: #ffffff;
   border: none;
@@ -1788,8 +2022,10 @@ tfoot td {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  overflow: hidden;
-  padding-bottom: 2px;
+  overflow-x: auto;
+  padding: 12px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #E2E8F0;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -1805,7 +2041,7 @@ tfoot td {
   align-items: center;
   gap: 7px;
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: 0;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -1831,7 +2067,7 @@ tfoot td {
 .reco-tab-badge {
   font-size: 11px;
   padding: 1px 6px;
-  border-radius: 12px;
+  border-radius: 0;
   font-weight: 700;
   background: #EDE9FE;
   color: #350B5E;
@@ -1844,10 +2080,11 @@ tfoot td {
 
 .reco-table-wrapper {
   background: #ffffff;
-  border-radius: 8px;
-  border: 1px solid #E2E8F0;
+  border-radius: 0;
+  border: none;
   overflow-x: auto;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
+  flex: 1;
 }
 
 .reco-table {
@@ -1930,7 +2167,7 @@ tfoot td {
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
-  border-radius: 20px;
+  border-radius: 0;
   font-size: 11.5px;
   font-weight: 600;
   white-space: nowrap;
@@ -1975,7 +2212,7 @@ tfoot td {
   background: none;
   border: none;
   padding: 5px;
-  border-radius: 4px;
+  border-radius: 0;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -2024,7 +2261,7 @@ tfoot td {
 
 .reco-modal-card {
   background: #ffffff;
-  border-radius: 12px;
+  border-radius: 0;
   width: 100%;
   max-width: 580px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
@@ -2104,7 +2341,7 @@ tfoot td {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid #CBD5E1;
-  border-radius: 6px;
+  border-radius: 0;
   font-size: 13px;
   color: var(--ink);
   outline: none;
@@ -2126,7 +2363,7 @@ tfoot td {
 
 .btn-reco-cancel {
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 0;
   border: 1px solid #CBD5E1;
   background: #ffffff;
   color: #475569;
@@ -2150,7 +2387,7 @@ tfoot td {
   max-width: 760px !important;
   width: 95% !important;
   max-height: 88vh !important;
-  border-radius: 10px !important;
+  border-radius: 0!important;
   padding: 18px 22px !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
   display: flex;
@@ -2171,7 +2408,7 @@ tfoot td {
   font-size: 15px;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: 0;
   cursor: pointer;
   color: #64748b;
   display: flex;
@@ -2191,7 +2428,7 @@ tfoot td {
   margin: 10px 0 8px;
   background: #f8fafc;
   padding: 10px 14px;
-  border-radius: 8px;
+  border-radius: 0;
   border: 1px solid #e2e8f0;
 }
 
@@ -2207,7 +2444,7 @@ tfoot td {
   width: 100%;
   padding: 6px 10px;
   border: 1.5px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 0;
   font-size: 12.5px;
   background-color: #ffffff;
   color: #0f172a;
@@ -2228,7 +2465,7 @@ tfoot td {
   align-items: center;
   gap: 8px;
   padding: 7px 12px;
-  border-radius: 6px;
+  border-radius: 0;
   font-size: 12px;
   margin-bottom: 8px;
 }
@@ -2241,7 +2478,7 @@ tfoot td {
 .import-columns-guide {
   background: #FAF5FF;
   border: 1px solid #E9D5FF;
-  border-radius: 6px;
+  border-radius: 0;
   padding: 8px 12px;
   font-size: 11.5px;
 }
@@ -2256,7 +2493,7 @@ tfoot td {
   background: #EDE9FE;
   color: #4C1D95;
   padding: 1.5px 6px;
-  border-radius: 4px;
+  border-radius: 0;
   font-family: monospace;
   font-size: 10.5px;
   font-weight: 600;
@@ -2266,7 +2503,7 @@ tfoot td {
   background: #f1f5f9;
   border: 1px solid #cbd5e1;
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 0;
   font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
@@ -2283,7 +2520,7 @@ tfoot td {
   font-size: 12px;
   padding: 8px 10px;
   border: 1.5px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 0;
   background: #ffffff;
   color: #0f172a;
   outline: none;
@@ -2297,7 +2534,7 @@ tfoot td {
 .import-preview-section {
   margin-top: 10px;
   border: 1px solid #e2e8f0;
-  border-radius: 6px;
+  border-radius: 0;
   overflow: hidden;
   background: #ffffff;
   flex: 1;
@@ -2325,7 +2562,7 @@ tfoot td {
   align-items: center;
   gap: 3px;
   padding: 2px 8px;
-  border-radius: 20px;
+  border-radius: 0;
   font-size: 11px;
   font-weight: 600;
 }
@@ -2382,7 +2619,7 @@ tfoot td {
 .pill-badge {
   display: inline-block;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: 0;
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
@@ -2428,7 +2665,7 @@ tfoot td {
 
 .import-btn-cancel {
   padding: 6px 16px;
-  border-radius: 6px;
+  border-radius: 0;
   border: 1px solid #cbd5e1;
   background: #ffffff;
   color: #475569;
@@ -2444,7 +2681,7 @@ tfoot td {
 
 .import-btn-submit {
   padding: 6px 18px;
-  border-radius: 6px;
+  border-radius: 0;
   border: none;
   background: #16a34a;
   color: #ffffff;

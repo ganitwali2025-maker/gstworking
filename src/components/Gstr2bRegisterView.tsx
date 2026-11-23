@@ -704,7 +704,7 @@ export default function Gstr2bRegisterView({
 
                   return (
                     <tr key={r.id}>
-                      <td style={{ textAlign: 'center' }}>{r.fy || '—'}</td>
+                      <td style={{ textAlign: 'center' }}>{(r.fy && r.fy !== 'ALL') ? r.fy : 'FY 2026–27'}</td>
                       <td style={{ textAlign: 'center' }}>{r.q || '—'}</td>
                       <td style={{ textAlign: 'center' }}>{r.m || '—'}</td>
                       <td style={{ textAlign: 'center' }}>{dmySlash(r.d)}</td>
@@ -776,7 +776,7 @@ export default function Gstr2bRegisterView({
                             padding: '4px 12px',
                             background: '#f1f5f9',
                             border: '1px solid #cbd5e1',
-                            borderRadius: '4px',
+                            borderRadius: '0',
                             fontSize: '12px',
                             cursor: 'pointer',
                             color: '#350B5E',
@@ -802,7 +802,7 @@ export default function Gstr2bRegisterView({
                             padding: '4px 12px',
                             background: '#f1f5f9',
                             border: '1px solid #cbd5e1',
-                            borderRadius: '4px',
+                            borderRadius: '0',
                             fontSize: '12px',
                             cursor: 'pointer',
                             color: '#350B5E',

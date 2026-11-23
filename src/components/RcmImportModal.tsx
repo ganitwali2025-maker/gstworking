@@ -66,7 +66,7 @@ export default function RcmImportModal({
   onImport,
   showToast
 }: RcmImportModalProps) {
-  const [selectedFy, setSelectedFy] = useState<string>(initialFy || FYS[0]);
+  const [selectedFy, setSelectedFy] = useState<string>((initialFy && initialFy !== 'ALL') ? initialFy : FYS[0]);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('Q2 (Jul-Sep)');
   const [selectedMonth, setSelectedMonth] = useState<string>('Aug');
   const [pastedText, setPastedText] = useState<string>('');
@@ -333,7 +333,7 @@ export default function RcmImportModal({
           style={{
             background: '#f8fafc',
             border: '1px solid #e2e8f0',
-            borderRadius: '8px',
+            borderRadius: '0',
             padding: '16px',
             marginBottom: '20px',
             display: 'grid',
@@ -351,7 +351,7 @@ export default function RcmImportModal({
               style={{
                 width: '100%',
                 padding: '9px 12px',
-                borderRadius: '6px',
+                borderRadius: '0',
                 border: '1px solid #cbd5e1',
                 fontSize: '13px',
                 background: '#fff'
@@ -373,7 +373,7 @@ export default function RcmImportModal({
               style={{
                 width: '100%',
                 padding: '9px 12px',
-                borderRadius: '6px',
+                borderRadius: '0',
                 border: '1px solid #cbd5e1',
                 fontSize: '13px',
                 background: '#fff'
@@ -396,7 +396,7 @@ export default function RcmImportModal({
               style={{
                 width: '100%',
                 padding: '9px 12px',
-                borderRadius: '6px',
+                borderRadius: '0',
                 border: '1px solid #cbd5e1',
                 fontSize: '13px',
                 background: '#fff'
@@ -420,7 +420,7 @@ export default function RcmImportModal({
               onClick={() => fileInputRef.current?.click()}
               style={{
                 padding: '4px 12px',
-                borderRadius: '4px',
+                borderRadius: '0',
                 border: '1px solid #cbd5e1',
                 background: '#fff',
                 fontSize: '12px',
@@ -432,7 +432,7 @@ export default function RcmImportModal({
             </button>
           </div>
 
-          <div style={{ fontSize: '12px', color: '#b45309', background: '#fef3c7', padding: '8px 12px', borderRadius: '6px', marginBottom: '8px', border: '1px solid #fde68a' }}>
+          <div style={{ fontSize: '12px', color: '#b45309', background: '#fef3c7', padding: '8px 12px', borderRadius: '0', marginBottom: '8px', border: '1px solid #fde68a' }}>
             ⚠️ <b>Important: Please copy & paste the data ALONG WITH the header row.</b>
             <div style={{ marginTop: '2px', color: '#92400e', fontSize: '11px' }}>
               Expected Columns: <code>ENTRY DATE | TRANSPORTER NAME | TRANSPORTER L.R. NO. | AMOUNT | IGST 5% | CGST 2.5% | SGST 2.5% | TOTAL TAX</code>
@@ -450,7 +450,7 @@ export default function RcmImportModal({
               fontFamily: 'monospace',
               fontSize: '12px',
               border: '1px solid #cbd5e1',
-              borderRadius: '6px',
+              borderRadius: '0',
               boxSizing: 'border-box',
               resize: 'vertical'
             }}
@@ -461,31 +461,31 @@ export default function RcmImportModal({
         {parsedRows.length > 0 && (
           <div style={{ marginBottom: '16px' }}>
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
-              <span style={{ fontSize: '12px', padding: '4px 10px', background: '#e0f2fe', color: '#0369a1', borderRadius: '4px', fontWeight: 600 }}>
+              <span style={{ fontSize: '12px', padding: '4px 10px', background: '#e0f2fe', color: '#0369a1', borderRadius: '0', fontWeight: 600 }}>
                 Total: {parsedRows.length} rows
               </span>
-              <span style={{ fontSize: '12px', padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '4px', fontWeight: 600 }}>
+              <span style={{ fontSize: '12px', padding: '4px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '0', fontWeight: 600 }}>
                 Ready to Import: {validCount} rows
               </span>
               {duplicateCount > 0 && (
-                <span style={{ fontSize: '12px', padding: '4px 10px', background: '#fef3c7', color: '#b45309', borderRadius: '4px', fontWeight: 600 }}>
+                <span style={{ fontSize: '12px', padding: '4px 10px', background: '#fef3c7', color: '#b45309', borderRadius: '0', fontWeight: 600 }}>
                   Duplicates: {duplicateCount} skipped
                 </span>
               )}
               {invalidCount > 0 && (
-                <span style={{ fontSize: '12px', padding: '4px 10px', background: '#fee2e2', color: '#b91c1c', borderRadius: '4px', fontWeight: 600 }}>
+                <span style={{ fontSize: '12px', padding: '4px 10px', background: '#fee2e2', color: '#b91c1c', borderRadius: '0', fontWeight: 600 }}>
                   Invalid: {invalidCount} rows
                 </span>
               )}
               {taxMismatchCount > 0 && (
-                <span style={{ fontSize: '12px', padding: '4px 10px', background: '#ffedd5', color: '#c2410c', borderRadius: '4px', fontWeight: 600 }}>
+                <span style={{ fontSize: '12px', padding: '4px 10px', background: '#ffedd5', color: '#c2410c', borderRadius: '0', fontWeight: 600 }}>
                   ⚠️ Tax Mismatch in {taxMismatchCount} rows
                 </span>
               )}
             </div>
 
             {/* Preview Table */}
-            <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+            <div style={{ maxHeight: '220px', overflow: 'auto', border: '1px solid #e2e8f0', borderRadius: '0' }}>
               <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse', textAlign: 'left' }}>
                 <thead style={{ background: '#f1f5f9', position: 'sticky', top: 0, zIndex: 1 }}>
                   <tr>
@@ -561,7 +561,7 @@ export default function RcmImportModal({
             onClick={onClose}
             style={{
               padding: '8px 18px',
-              borderRadius: '6px',
+              borderRadius: '0',
               border: '1px solid #cbd5e1',
               background: '#fff',
               fontSize: '13px',
@@ -577,7 +577,7 @@ export default function RcmImportModal({
             disabled={validCount === 0 || isLocked}
             style={{
               padding: '8px 22px',
-              borderRadius: '6px',
+              borderRadius: '0',
               border: 'none',
               background: validCount > 0 && !isLocked ? '#350B5E' : '#94a3b8',
               color: '#fff',

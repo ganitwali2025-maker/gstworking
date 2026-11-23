@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { fmtVal, inr } from '../utils/gstFormat';
 import { MonthlyStats } from '../types/gst';
+import { getQueryParams, updateQueryParams } from '../utils/router';
 
 export interface RecoRecord {
   id: string;
@@ -271,8 +272,6 @@ const TABS: TabItem[] = [
   { id: 'books-itc', label: 'Books ITC', icon: 'file' },
   { id: 'govt-2b', label: 'Government 2B', icon: 'download' },
   { id: 'debit-note', label: 'Debit Note', icon: 'file' },
-  { id: 'not-in-book', label: 'Not in Book', icon: 'file-minus' },
-  { id: 'not-in-2b', label: 'Not in 2B', icon: 'layers' },
   { id: 'matched', label: 'Match Invoice', icon: 'check' },
   { id: 'not-matched', label: 'Not Match Invoice', icon: 'layers' }
 ];
@@ -285,10 +284,30 @@ interface ReconciliationViewProps {
 }
 
 export default function ReconciliationView({
-  showToast = () => {},
+  showToast = () => { },
   fy: _fy = '2026-27'
 }: ReconciliationViewProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>('books-reco');
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    try {
+      const q = getQueryParams();
+      if (q.tab && TABS.some((t) => t.id === q.tab)) {
+        return q.tab as TabKey;
+      }
+    } catch { }
+    return 'books-reco';
+  });
+
+  useEffect(() => {
+    const syncTab = () => {
+      const q = getQueryParams();
+      if (q.tab && TABS.some((t) => t.id === q.tab)) {
+        setActiveTab(q.tab as TabKey);
+      }
+    };
+    syncTab();
+    window.addEventListener('popstate', syncTab);
+    return () => window.removeEventListener('popstate', syncTab);
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [records, setRecords] = useState<RecoRecord[]>(() => {
     try {
@@ -401,7 +420,7 @@ export default function ReconciliationView({
     setRecords(updatedList);
     try {
       localStorage.setItem('gst_reco_records_v1', JSON.stringify(updatedList));
-    } catch {}
+    } catch { }
     setIsEditing(false);
     setSelectedRecord(null);
     showToast('Record updated successfully!');
@@ -409,8 +428,9 @@ export default function ReconciliationView({
 
   return (
     <section id="v-rec" className="reco-page-container">
-      {/* 1. Header Card Matching Image 1 */}
-      <div className="reco-header-card">
+      <div className="card reco-card">
+        {/* 1. Header Card Matching Image 1 */}
+        <div className="reco-header-card">
         <div className="reco-header-left">
           <div className="reco-icon-badge">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -565,17 +585,16 @@ export default function ReconciliationView({
                     {/* STATUS PILL */}
                     <td className="col-status" style={{ textAlign: 'left' }}>
                       <span
-                        className={`reco-status-pill ${
-                          isNotIn2b
+                        className={`reco-status-pill ${isNotIn2b
                             ? 'pill-not-in-2b'
                             : isNoMatch
-                            ? 'pill-not-match'
-                            : isMatched
-                            ? 'pill-matched'
-                            : isNotInBook
-                            ? 'pill-not-in-book'
-                            : 'pill-debit-note'
-                        }`}
+                              ? 'pill-not-match'
+                              : isMatched
+                                ? 'pill-matched'
+                                : isNotInBook
+                                  ? 'pill-not-in-book'
+                                  : 'pill-debit-note'
+                          }`}
                       >
                         <span className="reco-status-dot">●</span> {r.status}
                       </span>
@@ -641,25 +660,8 @@ export default function ReconciliationView({
               </tr>
             )}
           </tbody>
-
-          {/* Table Footer with Summary Totals */}
-          {displayedRecords.length > 0 && (
-            <tfoot>
-              <tr className="reco-table-footer">
-                <td colSpan={5} style={{ fontWeight: 700, paddingLeft: '16px', textAlign: 'left' }}>
-                  TOTAL ({displayedRecords.length} INVOICES)
-                </td>
-                <td className="num-val" style={{ fontWeight: 700, textAlign: 'center' }}>{fmtVal(totalTaxable)}</td>
-                <td className="num-val" style={{ fontWeight: 700, textAlign: 'center' }}>{fmtVal(totalIgst)}</td>
-                <td className="num-val" style={{ fontWeight: 700, textAlign: 'center' }}>{fmtVal(totalCgst)}</td>
-                <td className="num-val" style={{ fontWeight: 700, textAlign: 'center' }}>{fmtVal(totalSgst)}</td>
-                <td className="num-val" style={{ fontWeight: 700, textAlign: 'center' }}>{fmtVal(totalCess)}</td>
-                <td className="num-val" style={{ fontWeight: 800, color: '#350b5e', textAlign: 'center' }}>{fmtVal(totalInvoiceVal)}</td>
-                <td style={{ textAlign: 'center' }}></td>
-              </tr>
-            </tfoot>
-          )}
         </table>
+      </div>
       </div>
 
       {/* 4. View Details Modal */}

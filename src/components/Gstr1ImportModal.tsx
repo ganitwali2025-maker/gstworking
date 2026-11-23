@@ -114,7 +114,7 @@ export default function Gstr1ImportModal({
   if (!isOpen) return null;
 
   // 1. Dropdown states
-  const [selectedFy, setSelectedFy] = useState<string>(fy || FYS[0]);
+  const [selectedFy, setSelectedFy] = useState<string>((fy && fy !== 'ALL') ? fy : FYS[0]);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('');
   const [selectedMonth, setSelectedMonth] = useState<string>('');
 

@@ -7,7 +7,10 @@ interface RegisterPeriodBarProps {
 const TITLES: Record<string, [string, string]> = {
   itc: ['GST ITC', 'Input tax credit available, reconcile aur use kaise hua'],
   liab: ['Liability', 'Output tax, ITC adjustment aur cash payable'],
-  steps: ['GST Working Steps', 'FY 2026–27 ke GST working steps, ek-ek karke tick karein'],
+  steps: [
+    'GST Return Preparation Steps - Systematic working every figure is verified before filing FY 2026-27',
+    ''
+  ],
   set: ['Settings', 'Business profile, filing aur alerts ki settings'],
   rcm: ['Reverse Charge Mechanism', 'RCM liability and eligible ITC tracking'],
   rec: ['ITC Reconciliation', 'GSTR-2B vs Books reconciliation statement']
@@ -21,10 +24,29 @@ export default function RegisterPeriodBar({
   const titleInfo = TITLES[view] || TITLES.itc;
 
   return (
-    <div className="banner">
-      <div>
-        <h1>{titleInfo[0]}</h1>
-        <p>{titleInfo[1]}</p>
+    <div className={`banner ${view === 'steps' ? 'banner-steps' : ''}`}>
+      <div style={{ width: '100%', overflow: 'hidden' }}>
+        <h1
+          style={
+            view === 'steps'
+              ? {
+                  fontSize: 'clamp(16px, 1.6vw, 20px)',
+                  fontWeight: 700,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  margin: 0,
+                  color: '#ffffff',
+                  letterSpacing: '0.015em',
+                  lineHeight: '1.2'
+                }
+              : {}
+          }
+          title={titleInfo[0]}
+        >
+          {titleInfo[0]}
+        </h1>
+        {titleInfo[1] ? <p>{titleInfo[1]}</p> : null}
       </div>
     </div>
   );
