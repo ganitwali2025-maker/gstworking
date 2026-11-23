@@ -35,6 +35,31 @@ export const SEED_MONTHLY_DATA: Record<string, MonthlyStats> = {
     liability: [279000, 150000, 150000],
     itc: [231000, 140000, 140000],
     rec: { matchRate: 90, booksItc: 578000, gstr2bItc: 534000, ineligible: 16000 }
+  },
+  'Nov 2026': {
+    liability: [285000, 154000, 154000],
+    itc: [238000, 142000, 142000],
+    rec: { matchRate: 92, booksItc: 586000, gstr2bItc: 548000, ineligible: 15000 }
+  },
+  'Dec 2026': {
+    liability: [292000, 158000, 158000],
+    itc: [245000, 146000, 146000],
+    rec: { matchRate: 94, booksItc: 602000, gstr2bItc: 574000, ineligible: 14000 }
+  },
+  'Jan 2027': {
+    liability: [275000, 148000, 148000],
+    itc: [228000, 138000, 138000],
+    rec: { matchRate: 91, booksItc: 564000, gstr2bItc: 532000, ineligible: 13000 }
+  },
+  'Feb 2027': {
+    liability: [268000, 144000, 144000],
+    itc: [222000, 134000, 134000],
+    rec: { matchRate: 93, booksItc: 550000, gstr2bItc: 524000, ineligible: 12000 }
+  },
+  'Mar 2027': {
+    liability: [310000, 168000, 168000],
+    itc: [260000, 156000, 156000],
+    rec: { matchRate: 96, booksItc: 642000, gstr2bItc: 618000, ineligible: 17000 }
   }
 };
 

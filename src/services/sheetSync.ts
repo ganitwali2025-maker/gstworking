@@ -86,10 +86,9 @@ export async function readModuleFromSheets(
     if (directJson.ok && Array.isArray(directJson.rows)) {
       return { success: true, rows: directJson.rows, count: directJson.rows.length };
     }
+    return { success: false, rows: [], count: 0, error: directJson.error || 'Failed to read sheet' };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Network error';
     return { success: false, rows: [], count: 0, error: msg };
   }
-
-  return { success: false, rows: [], count: 0 };
 }

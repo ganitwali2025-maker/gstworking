@@ -6,7 +6,9 @@ import { updateQueryParams } from '../utils/router';
 import Modal from './Modal';
 import Gstr1ImportModal from './Gstr1ImportModal';
 import { HeadingSearchBar } from './HeadingTemplate';
-import { filterRegisterRows, shiftG2bRowsFromGstr1 } from '../services/registerService';
+import { syncModuleToSheets } from '../services/sheetSync';
+import { GSTR1_SHEET_HEADERS, mapRowToSheetRow, filterRegisterRows, shiftG2bRowsFromGstr1 } from '../services/registerService';
+import { SEED_INVOICES } from '../data/seedData';
 
 interface TaxRegisterViewProps {
   invoices: InvoiceRecord[];
@@ -108,7 +110,14 @@ export default function TaxRegisterView({
   // Step 1: Ensure any g2b-... rows mistakenly present in GSTR-1 are shifted on load
   useEffect(() => {
     shiftG2bRowsFromGstr1();
-  }, []);
+    if (onRefresh) onRefresh();
+
+    const onWindowFocus = () => {
+      if (onRefresh) onRefresh();
+    };
+    window.addEventListener('focus', onWindowFocus);
+    return () => window.removeEventListener('focus', onWindowFocus);
+  }, [onRefresh]);
 
   // Step 4: Filter invoices strictly by selected FY, Month and Search Query
   const displayInvoices = filterRegisterRows(invoices, selectedFy, selectedMonth, searchQuery);
@@ -336,19 +345,38 @@ export default function TaxRegisterView({
   const handleSyncToSheets = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
-    showToast(`Syncing ${invoices.length} invoices to Google Sheet...`);
+    const targetInvoices = invoices.length > 0 ? invoices : SEED_INVOICES;
+    showToast(`Syncing ${targetInvoices.length} invoices to Google Sheet...`);
     try {
+      // 1. Direct frontend sync to Google Sheets Web App (runs on Vercel without backend)
+      const rows = targetInvoices.map((r) => mapRowToSheetRow(r, 'GSTR-1'));
+      if (rows.length > 0) {
+        const sheetRes = await syncModuleToSheets({
+          action: 'upsert',
+          sheet: 'GSTR-1',
+          headers: GSTR1_SHEET_HEADERS,
+          rows
+        });
+        if (sheetRes.success) {
+          showToast(`Google Sheet me ${sheetRes.count || targetInvoices.length} invoices sync ho gaye! ✓`);
+          if (onRefresh) onRefresh();
+          return;
+        }
+      }
+
+      // 2. Local backend proxy fallback
       const res = await fetch('/api/invoices/actions/sync-sheets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ forceAll: true })
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(`Google Sheet me ${data.count || invoices.length} invoices sync ho gaye! ✓`);
-        if (onRefresh) onRefresh();
-      } else {
-        showToast(data.message || 'Google Sheet sync fail hua.');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Google Sheet me ${data.count || targetInvoices.length} invoices sync ho gaye! ✓`);
+          if (onRefresh) onRefresh();
+          return;
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Sync error';
@@ -540,7 +568,10 @@ export default function TaxRegisterView({
             <button
               type="button"
               className="btn-gstr1 btn-refresh"
-              onClick={() => { onRefresh(); showToast('Register refreshed'); }}
+              onClick={() => {
+                onRefresh();
+                showToast('Register refreshed');
+              }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
@@ -570,7 +601,7 @@ export default function TaxRegisterView({
           </div>
         </div>
 
-        {/* Table matching Header Row Request: Standard Columns including CESS & Action */}
+        {/* Table matching Header Row Request: Financial Year, Quarter, Month, Invoice Date, Supplier / Party Name, GST No, Invoice No, Taxable Value, IGST, CGST, SGST, Total Tax, Total Invoice Value, Action */}
         <div className="gstr1-table-wrapper">
           <table className="gstr1-table">
             <thead>
@@ -582,13 +613,12 @@ export default function TaxRegisterView({
                 <th className="col-party" style={{ minWidth: '220px', textAlign: 'left' }}>SUPPLIER / PARTY NAME</th>
                 <th style={{ textAlign: 'center' }}>GST NO</th>
                 <th className="col-inv" style={{ textAlign: 'left' }}>INVOICE NO</th>
-                <th style={{ textAlign: 'center' }}>INVOICE VALUE</th>
                 <th style={{ textAlign: 'center' }}>TAXABLE VALUE</th>
                 <th style={{ textAlign: 'center' }}>IGST</th>
                 <th style={{ textAlign: 'center' }}>CGST</th>
                 <th style={{ textAlign: 'center' }}>SGST</th>
-                <th style={{ textAlign: 'center' }}>CESS</th>
                 <th style={{ textAlign: 'center' }}>TOTAL TAX</th>
+                <th style={{ textAlign: 'center' }}>TOTAL INVOICE VALUE</th>
                 <th style={{ textAlign: 'center' }}>ACTION</th>
               </tr>
             </thead>
@@ -633,13 +663,12 @@ export default function TaxRegisterView({
                           <span title="Pending Google Sheet sync" style={{ marginLeft: '6px', fontSize: '11px', color: '#94a3b8' }}>⏳</span>
                         )}
                       </td>
-                      <td className="num-val" style={{ fontWeight: 600, textAlign: 'center' }}>{fmtVal(totalItemValue)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.t)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.i)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.c)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.s)}</td>
-                      <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(cessVal)}</td>
                       <td className="num-val total-tax" style={{ textAlign: 'center' }}>{fmtVal(totalItemTax)}</td>
+                      <td className="num-val" style={{ fontWeight: 600, textAlign: 'center' }}>{fmtVal(totalItemValue)}</td>
                       <td className="act-col" style={{ textAlign: 'center' }}>
                         <button
                           type="button"

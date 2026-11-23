@@ -1,4 +1,5 @@
 import { inr } from '../utils/gstFormat';
+import { useMemo } from 'react';
 import { MonthlyStats } from '../types/gst';
 
 interface ItcDashboardViewProps {
@@ -14,12 +15,40 @@ export default function ItcDashboardView({ month, setMonth, monthlyData }: ItcDa
     itc: [0, 0, 0],
     rec: { matchRate: 0, booksItc: 0, gstr2bItc: 0, ineligible: 0 }
   };
-  const cur =
-    (monthlyData &&
-      (monthlyData[month] ||
-        (month !== 'ALL' && Object.entries(monthlyData).find(([k]) => k.toLowerCase().startsWith(month.toLowerCase()))?.[1]) ||
-        monthlyData[months[months.length - 1]])) ||
-    fallbackStats;
+
+  const allMonthsSum: MonthlyStats = useMemo(() => {
+    const list = Object.values(monthlyData || {});
+    if (!list.length) return fallbackStats;
+    const l0 = list.reduce((acc, x) => acc + (x.liability?.[0] || 0), 0);
+    const l1 = list.reduce((acc, x) => acc + (x.liability?.[1] || 0), 0);
+    const l2 = list.reduce((acc, x) => acc + (x.liability?.[2] || 0), 0);
+    const i0 = list.reduce((acc, x) => acc + (x.itc?.[0] || 0), 0);
+    const i1 = list.reduce((acc, x) => acc + (x.itc?.[1] || 0), 0);
+    const i2 = list.reduce((acc, x) => acc + (x.itc?.[2] || 0), 0);
+    const bItc = list.reduce((acc, x) => acc + (x.rec?.booksItc || 0), 0);
+    const gItc = list.reduce((acc, x) => acc + (x.rec?.gstr2bItc || 0), 0);
+    const inel = list.reduce((acc, x) => acc + (x.rec?.ineligible || 0), 0);
+    const avgMatch = Math.round(list.reduce((acc, x) => acc + (x.rec?.matchRate || 0), 0) / list.length);
+    return {
+      liability: [l0, l1, l2],
+      itc: [i0, i1, i2],
+      rec: { matchRate: avgMatch, booksItc: bItc, gstr2bItc: gItc, ineligible: inel }
+    };
+  }, [monthlyData]);
+
+  const cur = useMemo(() => {
+    if (!monthlyData) return fallbackStats;
+    if (!month || month.toUpperCase() === 'ALL') {
+      return allMonthsSum;
+    }
+    const cleanMonth = month.trim().toLowerCase();
+    const exact = monthlyData[month];
+    if (exact) return exact;
+    const matched = Object.entries(monthlyData).find(([k]) =>
+      k.toLowerCase().startsWith(cleanMonth) || cleanMonth.startsWith(k.toLowerCase().slice(0, 3))
+    );
+    return matched ? matched[1] : fallbackStats;
+  }, [month, monthlyData, allMonthsSum]);
 
   const sum = (a: number[]) => (a || []).reduce((x, y) => x + y, 0);
 

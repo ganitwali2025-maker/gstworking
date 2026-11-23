@@ -116,6 +116,25 @@ export default function HeadingTemplate({
     return matched ? matched.value : clean;
   }, [month]);
 
+  // Dynamic month options with Year (e.g. "September 2026") matching requested design
+  const dynamicMonthOptions = useMemo(() => {
+    const yrMatch = selectedFyValue.match(/\b(20\d\d)\b/);
+    const startYr = yrMatch ? parseInt(yrMatch[1], 10) : 2026;
+    const endYr = startYr + 1;
+
+    return MONTH_OPTIONS.map((m) => {
+      if (m.value === 'ALL') {
+        return { value: 'ALL', label: 'All Months' };
+      }
+      const isLateQuarter = ['Jan', 'Feb', 'Mar'].includes(m.value);
+      const year = isLateQuarter ? endYr : startYr;
+      return {
+        value: m.value,
+        label: `${m.label} ${year}`
+      };
+    });
+  }, [selectedFyValue]);
+
   return (
     <div className={`heading-template-wrapper ${className}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
       {/* Optional Search Bar when used in sheets or header */}
@@ -127,18 +146,17 @@ export default function HeadingTemplate({
         />
       )}
 
-      {/* 1. FY Select Dropdown Button */}
+      {/* 1. FY Select Dropdown Button (White pill with purple calendar icon) */}
       {setFy && (
         <label className="gstr1-select-wrapper" title="Select Financial Year">
           <div className="gstr1-select-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
               <line x1="16" y1="2" x2="16" y2="6"></line>
               <line x1="8" y1="2" x2="8" y2="6"></line>
               <line x1="3" y1="10" x2="21" y2="10"></line>
             </svg>
           </div>
-          <span className="gstr1-select-label">FY:</span>
           <select
             className="gstr1-select-field"
             value={selectedFyValue}
@@ -156,16 +174,17 @@ export default function HeadingTemplate({
         </label>
       )}
 
-      {/* 2. Month Select Dropdown Button */}
+      {/* 2. Month Select Dropdown Button (White pill with purple calendar icon) */}
       {setMonth && (
         <label className="gstr1-select-wrapper" title="Select Month">
           <div className="gstr1-select-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12 6 12 12 16 14"></polyline>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
             </svg>
           </div>
-          <span className="gstr1-select-label">Month:</span>
           <select
             className="gstr1-select-field"
             value={selectedMonthValue}
@@ -175,7 +194,7 @@ export default function HeadingTemplate({
               updateQueryParams({ month: val });
             }}
           >
-            {MONTH_OPTIONS.map((m) => (
+            {dynamicMonthOptions.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>
             ))}
           </select>

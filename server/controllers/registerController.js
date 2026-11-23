@@ -50,7 +50,7 @@ export const derivePeriodFromMonth = (monthStr, fallbackFy = 'FY 2026–27') => 
   const qLabel = `${qCode} (${QM_LABEL[qCode] || ''})`;
 
   // Financial Year: derived from year in month string if available (e.g. "Apr 2026")
-  let fy = fallbackFy;
+  let fy = (fallbackFy && fallbackFy !== 'ALL' && fallbackFy.trim()) ? fallbackFy : 'FY 2026–27';
   const yrMatch = clean.match(/\b(20\d\d)\b/);
   if (yrMatch) {
     const yr = parseInt(yrMatch[1], 10);
@@ -261,6 +261,16 @@ export const deleteRegisterRow = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Sheet is locked. Unlock to make changes.' });
     }
 
+    // 1. Google Sheets delete first (Rule 3)
+    const sheetRes = await googleSheets.deleteRows([id], { sheet: tabName });
+    if (!sheetRes.ok && !sheetRes.skipped) {
+      return res.status(502).json({
+        success: false,
+        message: 'Google Sheet delete failed: ' + (sheetRes.error || 'Unknown sheet error')
+      });
+    }
+
+    // 2. Only on sheet success, delete from DB
     const rows = db.registers?.[tabName] || [];
     const filtered = rows.filter((r) => r.id !== id);
 
@@ -268,25 +278,12 @@ export const deleteRegisterRow = async (req, res) => {
     if (tabName === REGISTER_TABS.GSTR1) {
       db.invoices = filtered;
     }
-
-    // Always attempt Google Sheets Delete
-    let sheetWarning = null;
-    try {
-      const sheetRes = await googleSheets.deleteRows([id], { sheet: tabName });
-      if (!sheetRes.ok && !sheetRes.skipped) {
-        sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
-      }
-    } catch (_) {
-      sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
-    }
-
     saveDb(db);
 
     res.json({
       success: true,
       tab: tabName,
-      message: 'Record deleted successfully.',
-      sheetWarning
+      message: 'Record deleted successfully.'
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -390,23 +387,28 @@ export const clearRegister = async (req, res) => {
     const hasMonth = m && m !== 'ALL';
 
     const toDeleteIds = [];
-    const remaining = rows.filter((r) => {
+    rows.forEach((r) => {
       const fyMatch = !hasFy || normalizeFy(r.fy || r.financialYear) === normalizeFy(fy);
       const monMatch = !hasMonth || normalizeMonth(r.m || r.month) === normalizeMonth(m);
       if (fyMatch && monMatch) {
         toDeleteIds.push(r.id);
-        return false;
       }
-      return true;
     });
 
     if (toDeleteIds.length > 0) {
-      try {
-        await googleSheets.deleteRows(toDeleteIds, { sheet: tabName });
-      } catch (_) {}
+      // 1. Google Sheets delete in ONE batch request (Rule 3)
+      const sheetRes = await googleSheets.deleteRows(toDeleteIds, { sheet: tabName });
+      if (!sheetRes.ok && !sheetRes.skipped) {
+        return res.status(502).json({
+          success: false,
+          message: 'Google Sheet clear failed: ' + (sheetRes.error || 'Unknown sheet error')
+        });
+      }
     }
 
-    const deletedCount = rows.length - remaining.length;
+    // 2. Only on sheet success, delete from DB
+    const toDeleteSet = new Set(toDeleteIds);
+    const remaining = rows.filter(r => !toDeleteSet.has(r.id));
     db.registers[tabName] = remaining;
     if (tabName === REGISTER_TABS.GSTR1) {
       db.invoices = remaining;
@@ -416,8 +418,8 @@ export const clearRegister = async (req, res) => {
     res.json({
       success: true,
       tab: tabName,
-      count: deletedCount,
-      message: `Cleared ${deletedCount} records from ${tabName}.`
+      count: toDeleteIds.length,
+      message: `Cleared ${toDeleteIds.length} records from ${tabName}.`
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

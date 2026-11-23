@@ -31,23 +31,29 @@ export const normalizeMonth = (str) => {
 };
 
 export const stampDate = (dateStr, fixedMonth, fixedFy) => {
-  if (fixedMonth && fixedFy) {
-    const normKey = normalizeMonth(fixedMonth);
-    const mi = MN.findIndex(x => x.toLowerCase() === normKey);
-    const validMi = mi !== -1 ? mi : 7;
-    const qCode = qOf(validMi);
-    return {
-      fy: fixedFy,
-      q: `${qCode} (${QM_LABEL[qCode] || ''})`,
-      m: MN[validMi]
-    };
-  }
   const parts = String(dateStr || '').split('-').map(Number);
   const y = parts[0] || 2026;
   const mi = (parts[1] && !isNaN(parts[1])) ? parts[1] - 1 : 7;
   const qCode = qOf(mi);
+  const dateFy = fyOf(y, mi);
+
+  const hasFixedFy = Boolean(fixedFy && fixedFy !== 'ALL' && fixedFy.trim());
+  const finalFy = hasFixedFy ? fixedFy : dateFy;
+
+  if (fixedMonth && fixedMonth !== 'ALL') {
+    const normKey = normalizeMonth(fixedMonth);
+    const foundMi = MN.findIndex(x => x.toLowerCase() === normKey);
+    const validMi = foundMi !== -1 ? foundMi : mi;
+    const finalQ = qOf(validMi);
+    return {
+      fy: finalFy,
+      q: `${finalQ} (${QM_LABEL[finalQ] || ''})`,
+      m: MN[validMi]
+    };
+  }
+
   return {
-    fy: fyOf(y, mi),
+    fy: finalFy,
     q: `${qCode} (${QM_LABEL[qCode] || ''})`,
     m: MN[mi]
   };
@@ -58,16 +64,17 @@ export const getInvoices = async (req, res) => {
     const db = getDb();
     let list = db.invoices || [];
 
-    // Attempt live fetch from Google Sheets GSTR-1 tab
+    // Live fetch from Google Sheets GSTR-1 tab (Google Sheet is Single Source of Truth)
     try {
       const sheetRes = await googleSheets.readSheet({ sheet: 'GSTR-1' });
       if (sheetRes && sheetRes.ok && Array.isArray(sheetRes.rows)) {
-        list = sheetRes.rows
+        const liveRows = sheetRes.rows
           .map((r) => googleSheets.mapSheetRowToRecord(r.values || r, 'GSTR-1'))
           .filter(Boolean);
-        db.invoices = list;
+        list = liveRows;
+        db.invoices = liveRows;
         if (!db.registers) db.registers = {};
-        db.registers['GSTR-1'] = list;
+        db.registers['GSTR-1'] = liveRows;
         saveDb(db);
       }
     } catch (sheetErr) {
@@ -287,24 +294,24 @@ export const deleteInvoice = async (req, res) => {
     }
 
     const { id } = req.params;
+
+    // 1. Google Sheets delete first (Rule 3)
+    const sheetRes = await googleSheets.deleteRows([id], { sheet: 'GSTR-1' });
+    if (!sheetRes.ok && !sheetRes.skipped) {
+      return res.status(502).json({
+        success: false,
+        message: 'Google Sheet delete failed: ' + (sheetRes.error || 'Unknown sheet error')
+      });
+    }
+
+    // 2. Only on sheet success, delete from DB
     db.invoices = (db.invoices || []).filter(x => x.id !== id);
     if (db.registers && db.registers['GSTR-1']) {
       db.registers['GSTR-1'] = db.registers['GSTR-1'].filter(x => x.id !== id);
     }
-
-    // Always attempt Google Sheets Delete
-    let sheetWarning = null;
-    try {
-      const sheetRes = await googleSheets.deleteRows([id], { sheet: 'GSTR-1' });
-      if (!sheetRes.ok && !sheetRes.skipped) {
-        sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
-      }
-    } catch (_) {
-      sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
-    }
-
     saveDb(db);
-    res.json({ success: true, message: 'Invoice deleted successfully.', sheetWarning });
+
+    res.json({ success: true, message: 'Invoice deleted successfully.' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -318,34 +325,39 @@ export const clearInvoices = async (req, res) => {
     }
 
     const { fy, q, m } = req.query;
-    const initialCount = db.invoices.length;
-
     const hasFy = fy && fy !== 'ALL';
     const hasMonth = m && m !== 'ALL';
 
     const toDeleteIds = [];
-    db.invoices = db.invoices.filter(r => {
+    db.invoices.forEach(r => {
       const fyMatch = !hasFy || normalizeFy(r.fy) === normalizeFy(fy);
       const qMatch = !q || q === 'ALL' || r.q === q;
       const monthMatch = !hasMonth || normalizeMonth(r.m) === normalizeMonth(m);
-
       if (fyMatch && qMatch && monthMatch) {
         toDeleteIds.push(r.id);
-        return false;
       }
-      return true;
     });
 
     if (toDeleteIds.length > 0) {
-      try {
-        await googleSheets.deleteRows(toDeleteIds);
-      } catch (_) {}
+      // 1. Google Sheets delete in ONE batch request
+      const sheetRes = await googleSheets.deleteRows(toDeleteIds, { sheet: 'GSTR-1' });
+      if (!sheetRes.ok && !sheetRes.skipped) {
+        return res.status(502).json({
+          success: false,
+          message: 'Google Sheet clear failed: ' + (sheetRes.error || 'Unknown sheet error')
+        });
+      }
     }
 
-    const deletedCount = initialCount - db.invoices.length;
+    // 2. Only on sheet success, delete from DB
+    const toDeleteSet = new Set(toDeleteIds);
+    db.invoices = db.invoices.filter(r => !toDeleteSet.has(r.id));
+    if (db.registers && db.registers['GSTR-1']) {
+      db.registers['GSTR-1'] = db.registers['GSTR-1'].filter(r => !toDeleteSet.has(r.id));
+    }
     saveDb(db);
 
-    res.json({ success: true, count: deletedCount, message: `Cleared ${deletedCount} records.` });
+    res.json({ success: true, count: toDeleteIds.length, message: `Cleared ${toDeleteIds.length} records.` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

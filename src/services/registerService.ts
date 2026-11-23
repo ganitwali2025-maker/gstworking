@@ -18,6 +18,41 @@ export const REGISTER_TABS: Record<string, RegisterTabName> = {
   GSTR2B: 'GSTR-2B'
 };
 
+export const GSTR1_SHEET_HEADERS = [
+  'ID',
+  'Financial Year',
+  'Quarter',
+  'Month',
+  'Invoice Date',
+  'Supplier / Party Name',
+  'GST No',
+  'Invoice No',
+  'Taxable Value',
+  'IGST',
+  'CGST',
+  'SGST',
+  'Total Tax',
+  'Total Invoice Value'
+];
+
+export const ITC_PURCHASE_SHEET_HEADERS = [
+  'ID',
+  'Financial Year',
+  'Quarter',
+  'Month',
+  'Invoice Date',
+  'Supplier / Party Name',
+  'GST No',
+  'Invoice No',
+  'Taxable Value',
+  'IGST',
+  'CGST',
+  'SGST',
+  'CESS',
+  'Total Tax',
+  'Total Invoice Value'
+];
+
 export const STANDARD_SHEET_HEADERS = [
   'ID',
   'Financial Year',
@@ -45,6 +80,8 @@ export const RCM_SHEET_HEADERS = [
 ];
 
 export function getHeadersForTab(tabName: RegisterTabName): string[] {
+  if (tabName === 'GSTR-1') return GSTR1_SHEET_HEADERS;
+  if (tabName === 'ITC-Purchase') return ITC_PURCHASE_SHEET_HEADERS;
   if (tabName === 'RCM') return RCM_SHEET_HEADERS;
   return STANDARD_SHEET_HEADERS;
 }
@@ -93,7 +130,7 @@ export function derivePeriodFromMonth(
   const qLabel = `${qCode} (${QUARTER_LABELS[qCode] || ''})`;
 
   // Financial Year: derived from year in month string if available (e.g. "Apr 2026")
-  let fy = fallbackFy;
+  let fy = (fallbackFy && fallbackFy !== 'ALL' && fallbackFy.trim()) ? fallbackFy : 'FY 2026–27';
   const yrMatch = clean.match(/\b(20\d\d)\b/);
   if (yrMatch) {
     const yr = parseInt(yrMatch[1], 10);
@@ -202,6 +239,57 @@ export function mapRowToSheetRow(
   const p = (isGstRegex.test(rawP.trim()) && (rawP.trim().toUpperCase() === g || !g)) ? '' : rawP;
   const n = String(row.n || row.invNo || row.invoiceNo || row.lrNo || '');
 
+  if (tabName === 'GSTR-1') {
+    // Exact GSTR-1 sequence requested by user and matching sheet headers:
+    // ID, FY, Quarter, Month, Invoice Date, Supplier / Party Name, GST No, Invoice No,
+    // Taxable Value (tNum), IGST (iNum), CGST (cNum), SGST (sNum), Total Tax (totalTax), Total Invoice Value (invVal)
+    return {
+      id,
+      values: [
+        id,
+        fy,
+        q,
+        m,
+        d,
+        p,
+        g,
+        n,
+        tNum,
+        iNum,
+        cNum,
+        sNum,
+        totalTax,
+        invVal
+      ]
+    };
+  }
+
+  if (tabName === 'ITC-Purchase') {
+    // Purchase sequence: Invoice Value moved after Total Tax to the end
+    // ID, FY, Quarter, Month, Invoice Date, Supplier / Party Name, GST No, Invoice No,
+    // Taxable Value (tNum), IGST (iNum), CGST (cNum), SGST (sNum), CESS (cessNum), Total Tax (totalTax), Total Invoice Value (invVal)
+    return {
+      id,
+      values: [
+        id,
+        fy,
+        q,
+        m,
+        d,
+        p,
+        g,
+        n,
+        tNum,
+        iNum,
+        cNum,
+        sNum,
+        cessNum,
+        totalTax,
+        invVal
+      ]
+    };
+  }
+
   const standardValues: (string | number)[] = [
     id,
     fy,
@@ -261,7 +349,8 @@ export function mapSheetRowToAppRecord(values: any[], tabName: RegisterTabName):
   const id = String(values[0] || '').trim();
   if (!id) return null;
 
-  const fy = String(values[1] || 'FY 2026–27').trim();
+  const rawFy = String(values[1] || '').trim();
+  const fy = (rawFy && rawFy !== 'ALL') ? rawFy : 'FY 2026–27';
   const q = String(values[2] || '').trim();
   const m = String(values[3] || '').trim();
   const rawDate = String(values[4] || '').trim();
@@ -285,12 +374,40 @@ export function mapSheetRowToAppRecord(values: any[], tabName: RegisterTabName):
   const cleanParty = (isGstRegex.test(p) && (p.toUpperCase() === g || !g)) ? '' : p;
   const n = String(values[7] || '').trim();
 
-  const invValRupees = Number(values[8]) || 0;
-  const taxableRupees = Number(values[9]) || 0;
-  const igstRupees = Number(values[10]) || 0;
-  const cgstRupees = Number(values[11]) || 0;
-  const sgstRupees = Number(values[12]) || 0;
-  const cessRupees = Number(values[13]) || 0;
+  let invValRupees = 0;
+  let taxableRupees = 0;
+  let igstRupees = 0;
+  let cgstRupees = 0;
+  let sgstRupees = 0;
+  let cessRupees = 0;
+
+  if (tabName === 'GSTR-1') {
+    // Exact GSTR-1 sequence:
+    // [8]=Taxable Value, [9]=IGST, [10]=CGST, [11]=SGST, [12]=Total Tax, [13]=Total Invoice Value
+    taxableRupees = Number(values[8]) || 0;
+    igstRupees = Number(values[9]) || 0;
+    cgstRupees = Number(values[10]) || 0;
+    sgstRupees = Number(values[11]) || 0;
+    const totalTaxRupees = Number(values[12]) || (igstRupees + cgstRupees + sgstRupees);
+    invValRupees = Number(values[13]) || (taxableRupees + totalTaxRupees);
+  } else if (tabName === 'ITC-Purchase') {
+    // Exact Purchase sequence: Invoice Value at the end after Total Tax
+    // [8]=Taxable Value, [9]=IGST, [10]=CGST, [11]=SGST, [12]=CESS, [13]=Total Tax, [14]=Total Invoice Value
+    taxableRupees = Number(values[8]) || 0;
+    igstRupees = Number(values[9]) || 0;
+    cgstRupees = Number(values[10]) || 0;
+    sgstRupees = Number(values[11]) || 0;
+    cessRupees = Number(values[12]) || 0;
+    const totalTaxRupees = Number(values[13]) || (igstRupees + cgstRupees + sgstRupees + cessRupees);
+    invValRupees = Number(values[14]) || (taxableRupees + totalTaxRupees);
+  } else {
+    invValRupees = Number(values[8]) || 0;
+    taxableRupees = Number(values[9]) || 0;
+    igstRupees = Number(values[10]) || 0;
+    cgstRupees = Number(values[11]) || 0;
+    sgstRupees = Number(values[12]) || 0;
+    cessRupees = Number(values[13]) || 0;
+  }
 
   const invValPaise = Math.round(invValRupees * 100);
   const taxablePaise = Math.round(taxableRupees * 100);
@@ -346,9 +463,8 @@ export function mapSheetRowToAppRecord(values: any[], tabName: RegisterTabName):
  * Step 5: Common Load data from backend (or fallback Google Sheets / localStorage) for a specific tab
  */
 export async function loadRegisterRows<T = any>(
-  tabName: RegisterTabName,
-  fallbackRows: T[] = []
-): Promise<{ rows: T[]; totalCount: number; locked: boolean }> {
+  tabName: RegisterTabName
+): Promise<{ rows: T[]; totalCount: number; locked: boolean; error?: string | null }> {
   const storageKey = getLocalStorageKey(tabName);
   let localRows: T[] = [];
   try {
@@ -358,13 +474,14 @@ export async function loadRegisterRows<T = any>(
     }
   } catch {}
 
-  // 1. Attempt backend API fetch (which fetches live from Google Sheets)
+  // 1. Attempt backend API fetch (which fetches live from Google Sheets - Source of Truth)
   try {
     const res = await fetch(`/api/registers/${tabName}`);
     if (res.ok) {
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) {
-        // Authoritative data from server / Google Sheets
+        // Authoritative live data from Google Sheet / server
+        // Even if json.data is empty [], we update localStorage to []!
         try {
           localStorage.setItem(storageKey, JSON.stringify(json.data));
         } catch {}
@@ -382,6 +499,7 @@ export async function loadRegisterRows<T = any>(
     const sheetRes = await readModuleFromSheets(tabName);
     if (sheetRes.success && Array.isArray(sheetRes.rows)) {
       const mapped = sheetRes.rows.map((r: any) => mapSheetRowToAppRecord(r.values || r, tabName)).filter(Boolean);
+      // Sheet read succeeded! If sheet is empty, mapped is [] and localStorage becomes []!
       try {
         localStorage.setItem(storageKey, JSON.stringify(mapped));
       } catch {}
@@ -393,15 +511,12 @@ export async function loadRegisterRows<T = any>(
     }
   } catch {}
 
-  // 3. Fallback to localStorage or provided initial rows only when completely offline
-  if (localRows.length === 0 && fallbackRows.length > 0) {
-    localRows = fallbackRows;
-  }
-
+  // 3. ONLY if both live sources failed due to network error, return offline local cache with error flag!
   return {
     rows: localRows,
     totalCount: localRows.length,
-    locked: false
+    locked: false,
+    error: 'Google Sheet read failed. Showing offline cached data.'
   };
 }
 
@@ -501,27 +616,46 @@ export async function bulkImportRegisterRows(
 export async function deleteRegisterRow(
   tabName: RegisterTabName,
   id: string
-): Promise<{ success: boolean; sheetWarning?: string | null }> {
-  let sheetWarning: string | null = null;
-  try {
-    const sheetRes = await syncModuleToSheets({
-      action: 'delete',
-      sheet: tabName,
-      headers: getHeadersForTab(tabName),
-      ids: [id]
-    });
-    if (!sheetRes.success) {
-      sheetWarning = 'Google Sheet me delete sync fail hua.';
-    }
-  } catch {
-    sheetWarning = 'Google Sheet me delete sync fail hua.';
+): Promise<{ success: boolean; error?: string | null }> {
+  // 1. Pehle Google Sheet se delete karo
+  const sheetRes = await syncModuleToSheets({
+    action: 'delete',
+    sheet: tabName,
+    headers: getHeadersForTab(tabName),
+    ids: [id]
+  });
+
+  if (!sheetRes.success) {
+    return {
+      success: false,
+      error: sheetRes.error || 'Google Sheet delete failed. Record not deleted.'
+    };
   }
 
+  // 2. Google Sheet success milne par hi backend se delete karo
   try {
-    await fetch(`/api/registers/${tabName}/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/registers/${tabName}/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      console.warn(`Backend delete failed for ${id} in ${tabName}`);
+    }
+  } catch (err) {
+    console.warn(`Backend delete error for ${id} in ${tabName}:`, err);
+  }
+
+  // 3. localStorage se bhi hatao
+  const storageKey = getLocalStorageKey(tabName);
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        const remaining = parsed.filter((r: any) => r.id !== id);
+        localStorage.setItem(storageKey, JSON.stringify(remaining));
+      }
+    }
   } catch {}
 
-  return { success: true, sheetWarning };
+  return { success: true };
 }
 
 /**
@@ -532,23 +666,49 @@ export async function clearRegisterRows(
   toDeleteIds: string[],
   fy?: string,
   month?: string
-): Promise<{ success: boolean; count: number }> {
-  if (toDeleteIds.length > 0) {
-    try {
-      await syncModuleToSheets({
-        action: 'delete',
-        sheet: tabName,
-        headers: getHeadersForTab(tabName),
-        ids: toDeleteIds
-      });
-    } catch {}
+): Promise<{ success: boolean; count: number; error?: string | null }> {
+  if (!toDeleteIds || toDeleteIds.length === 0) {
+    return { success: true, count: 0 };
   }
 
+  // 1. Pehle Google Sheet se ek hi batch request me saare IDs delete karo
+  const sheetRes = await syncModuleToSheets({
+    action: 'delete',
+    sheet: tabName,
+    headers: getHeadersForTab(tabName),
+    ids: toDeleteIds
+  });
+
+  if (!sheetRes.success) {
+    return {
+      success: false,
+      count: 0,
+      error: sheetRes.error || 'Google Sheet batch clear failed. Records not deleted.'
+    };
+  }
+
+  // 2. Google Sheet success milne par hi backend se clear karo
   try {
     const params = new URLSearchParams();
     if (fy && fy !== 'ALL') params.append('fy', fy);
     if (month && month !== 'ALL') params.append('m', month);
     await fetch(`/api/registers/${tabName}/actions/clear?${params.toString()}`, { method: 'DELETE' });
+  } catch (err) {
+    console.warn(`Backend clear error for ${tabName}:`, err);
+  }
+
+  // 3. localStorage se bhi hatao
+  const storageKey = getLocalStorageKey(tabName);
+  try {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        const idSet = new Set(toDeleteIds);
+        const remaining = parsed.filter((r: any) => !idSet.has(r.id));
+        localStorage.setItem(storageKey, JSON.stringify(remaining));
+      }
+    }
   } catch {}
 
   return { success: true, count: toDeleteIds.length };

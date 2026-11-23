@@ -41,6 +41,18 @@ export interface ParsedRcmRow {
   rowMonth?: string;
 }
 
+interface RcmColIndex {
+  date: number;
+  transporter: number;
+  lrNo: number;
+  amount: number;
+  igst: number;
+  cgst: number;
+  sgst: number;
+  totalTax: number;
+  month?: number;
+}
+
 function normalizeColName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
@@ -97,7 +109,7 @@ export default function RcmImportModal({
       return clean.includes('gstin') || clean.includes('gstno') || clean === 'gst' || clean.includes('gstnumber') || clean.includes('tin') || clean.includes('uin');
     };
 
-    let colIndex = {
+    let colIndex: RcmColIndex = {
       date: headerCells.findIndex((h) => h.includes('entrydate') || h === 'date' || h === 'entry' || h.includes('invoicedate')),
       transporter: headerCells.findIndex((h) => !isGstHeader(h) && (h.includes('transportername') || h.includes('transporter') || h.includes('party') || h.includes('supplier') || h === 'name')),
       lrNo: headerCells.findIndex((h) => (h.includes('lrno') || h.includes('lr') || h.includes('lrnumber') || h.includes('invoiceno') || h.includes('invno')) && !isGstHeader(h)),
@@ -148,7 +160,7 @@ export default function RcmImportModal({
       const parsedDate = parseExcelDate(rawDate);
       const transporter = getCell(colIndex.transporter);
       const lrNo = getCell(colIndex.lrNo);
-      const rowMonth = getCell(colIndex.month);
+      const rowMonth = colIndex.month !== undefined && colIndex.month >= 0 ? getCell(colIndex.month) : '';
 
       const amount = parseCleanNumber(getCell(colIndex.amount));
       const igstVal = parseCleanNumber(getCell(colIndex.igst));

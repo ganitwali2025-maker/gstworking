@@ -194,13 +194,30 @@ export default function Gstr2bRegisterView({
     } catch {}
   };
 
-  // Step 5: Load data for GSTR-2B tab on mount
-  useEffect(() => {
-    loadRegisterRows<Gstr2bRecord>(REGISTER_TABS.GSTR2B, []).then((res) => {
+  const handleRefresh = async () => {
+    try {
+      const res = await loadRegisterRows<Gstr2bRecord>(REGISTER_TABS.GSTR2B);
       if (res.rows) {
         setRecords(res.rows);
       }
-    });
+      if (res.error) {
+        notify(res.error);
+      } else {
+        notify('GSTR-2B tab data reloaded successfully');
+      }
+    } catch {
+      notify('GSTR-2B refreshed');
+    }
+  };
+
+  // Step 5: Load data for GSTR-2B tab on mount & window focus
+  useEffect(() => {
+    handleRefresh();
+
+    const onWindowFocus = () => {
+      handleRefresh();
+    };
+    window.addEventListener('focus', onWindowFocus);
 
     const handleSynced = (e: any) => {
       if (e.detail?.tab === REGISTER_TABS.GSTR2B) {
@@ -211,20 +228,11 @@ export default function Gstr2bRegisterView({
       }
     };
     window.addEventListener('register-synced', handleSynced);
-    return () => window.removeEventListener('register-synced', handleSynced);
+    return () => {
+      window.removeEventListener('focus', onWindowFocus);
+      window.removeEventListener('register-synced', handleSynced);
+    };
   }, []);
-
-  const handleRefresh = async () => {
-    try {
-      const res = await loadRegisterRows<Gstr2bRecord>(REGISTER_TABS.GSTR2B, records);
-      if (res.rows) {
-        setRecords(res.rows);
-      }
-      notify('GSTR-2B tab data reloaded successfully');
-    } catch {
-      notify('GSTR-2B refreshed');
-    }
-  };
 
   // Step 4: Filter display records strictly by selected FY, Month and Search Query
   const displayRecords = useMemo(() => {
@@ -294,25 +302,16 @@ export default function Gstr2bRegisterView({
       message: 'Kya aap is GSTR-2B record ko delete karna chahte hain?',
       confirmLabel: 'Delete',
       onConfirm: async () => {
+        // 1. Google Sheets delete first (Rule 3)
+        const res = await deleteRegisterRow(REGISTER_TABS.GSTR2B, id);
+        if (!res.success) {
+          notify(res.error || 'Google Sheet delete failed. Record not deleted.');
+          return;
+        }
+
+        // 2. Only on success, remove from app state & localStorage
         persistRecords(records.filter((r) => r.id !== id));
         notify('Record deleted');
-
-        // Backend delete
-        fetch(`/api/registers/${REGISTER_TABS.GSTR2B}/${id}`, { method: 'DELETE' }).catch(() => {});
-
-        try {
-          const res = await syncModuleToSheets({
-            action: 'delete',
-            sheet: GSTR2B_SHEET_NAME,
-            headers: GSTR2B_SHEET_HEADERS,
-            ids: [id]
-          });
-          if (!res.success) {
-            notify('Data save ho gaya, par Google Sheet sync fail hua');
-          }
-        } catch {
-          notify('Data save ho gaya, par Google Sheet sync fail hua');
-        }
       }
     });
   };
@@ -372,38 +371,29 @@ export default function Gstr2bRegisterView({
     }
 
     const periodDesc = `${selectedMonth !== 'ALL' ? selectedMonth : 'All Months'} ${selectedFy !== 'ALL' ? selectedFy : ''}`.trim();
+    const toDeleteIds = displayRecords.map((r) => r.id);
+    if (toDeleteIds.length === 0) {
+      notify('No records to clear.');
+      return;
+    }
 
     setConfirmDialog({
       title: 'Clear Data Confirmation',
       message: `${periodDesc} ka saara data delete hoga. Pakka?`,
       confirmLabel: 'Delete All',
       onConfirm: async () => {
-        const toDeleteIds = displayRecords.map((r) => r.id);
-        const remaining = records.filter((r) => !toDeleteIds.includes(r.id));
+        // 1. Google Sheets batch delete first (Rule 3)
+        const res = await clearRegisterRows(REGISTER_TABS.GSTR2B, toDeleteIds, selectedFy, selectedMonth);
+        if (!res.success) {
+          notify(res.error || 'Google Sheet clear failed. Records not deleted.');
+          return;
+        }
+
+        // 2. Only on success, remove from app state & localStorage
+        const idSet = new Set(toDeleteIds);
+        const remaining = records.filter((r) => !idSet.has(r.id));
         persistRecords(remaining);
         notify(`${periodDesc} data cleared`);
-
-        // Backend clear
-        try {
-          const params = new URLSearchParams();
-          if (selectedFy !== 'ALL') params.append('fy', selectedFy);
-          if (selectedMonth !== 'ALL') params.append('m', selectedMonth);
-          fetch(`/api/registers/${REGISTER_TABS.GSTR2B}/actions/clear?${params.toString()}`, { method: 'DELETE' }).catch(() => {});
-        } catch {}
-
-        try {
-          const res = await syncModuleToSheets({
-            action: 'delete',
-            sheet: GSTR2B_SHEET_NAME,
-            headers: GSTR2B_SHEET_HEADERS,
-            ids: toDeleteIds
-          });
-          if (!res.success) {
-            notify('Data save ho gaya, par Google Sheet sync fail hua');
-          }
-        } catch {
-          notify('Data save ho gaya, par Google Sheet sync fail hua');
-        }
       }
     });
   };

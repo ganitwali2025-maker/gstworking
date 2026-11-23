@@ -18,15 +18,25 @@ const CONFIG = {
     RCM: 'RCM',
     GSTR2B: 'GSTR-2B'
   },
+  GSTR1_HEADERS: [
+    'ID', 'Financial Year', 'Quarter', 'Month', 'Invoice Date',
+    'Supplier / Party Name', 'GST No', 'Invoice No',
+    'Taxable Value', 'IGST', 'CGST', 'SGST', 'Total Tax', 'Total Invoice Value'
+  ],
+  ITC_PURCHASE_HEADERS: [
+    'ID', 'Financial Year', 'Quarter', 'Month', 'Invoice Date',
+    'Supplier / Party Name', 'GST No', 'Invoice No',
+    'Taxable Value', 'IGST', 'CGST', 'SGST', 'CESS', 'Total Tax', 'Total Invoice Value'
+  ],
   STANDARD_HEADERS: [
     'ID', 'Financial Year', 'Quarter', 'Month', 'Invoice Date',
     'Supplier / Party Name', 'GST No', 'Invoice No', 'Invoice Value',
     'Taxable Value', 'IGST', 'CGST', 'SGST', 'CESS', 'Total Tax'
   ],
   RCM_HEADERS: [
-    'ID', 'Financial Year', 'Quarter', 'Month', 'Invoice Date',
-    'Supplier / Party Name', 'GST No', 'Invoice No', 'Invoice Value',
-    'Taxable Value', 'IGST', 'CGST', 'SGST', 'CESS', 'Total Tax',
+    'ID', 'Financial Year', 'Quarter', 'Month', 'Entry Date',
+    'Transporter Name', 'GST No', 'Transporter L.R. No.',
+    'Amount', 'IGST 5%', 'CGST 2.5%', 'SGST 2.5%', 'Total Tax',
     'RCM Category', 'RCM Tax Rate', 'RCM Applicable', 'Eligible ITC'
   ]
 };
@@ -109,7 +119,14 @@ function jsonResponse(data) {
 
 function getOrCreateSheet(ss, sheetName, headers) {
   let sheet = ss.getSheetByName(sheetName);
-  const defaultHeaders = sheetName === CONFIG.TABS.RCM ? CONFIG.RCM_HEADERS : CONFIG.STANDARD_HEADERS;
+  let defaultHeaders = CONFIG.STANDARD_HEADERS;
+  if (sheetName === CONFIG.TABS.GSTR1) {
+    defaultHeaders = CONFIG.GSTR1_HEADERS;
+  } else if (sheetName === CONFIG.TABS.ITC_PURCHASE) {
+    defaultHeaders = CONFIG.ITC_PURCHASE_HEADERS;
+  } else if (sheetName === CONFIG.TABS.RCM) {
+    defaultHeaders = CONFIG.RCM_HEADERS;
+  }
   const useHeaders = (headers && headers.length > 0) ? headers : defaultHeaders;
 
   if (!sheet) {
@@ -156,8 +173,30 @@ function handleUpsert(ss, sheetName, headers, rows) {
     }
   }
 
-  const defaultHeaders = sheetName === CONFIG.TABS.RCM ? CONFIG.RCM_HEADERS : CONFIG.STANDARD_HEADERS;
+  let defaultHeaders = CONFIG.STANDARD_HEADERS;
+  if (sheetName === CONFIG.TABS.GSTR1) {
+    defaultHeaders = CONFIG.GSTR1_HEADERS;
+  } else if (sheetName === CONFIG.TABS.ITC_PURCHASE) {
+    defaultHeaders = CONFIG.ITC_PURCHASE_HEADERS;
+  } else if (sheetName === CONFIG.TABS.RCM) {
+    defaultHeaders = CONFIG.RCM_HEADERS;
+  }
   const colCount = (headers && headers.length > 0) ? headers.length : defaultHeaders.length;
+
+  // Ensure GSTR-1 header row is set to exact 14 columns matching user layout
+  if (sheetName === CONFIG.TABS.GSTR1) {
+    sheet.getRange(1, 1, 1, CONFIG.GSTR1_HEADERS.length).setValues([CONFIG.GSTR1_HEADERS]);
+    formatHeaderRow(sheet, CONFIG.GSTR1_HEADERS.length);
+    if (sheet.getLastColumn() > 14 && sheet.getLastRow() > 0) {
+      sheet.getRange(1, 15, sheet.getLastRow(), sheet.getLastColumn() - 14).clearContent();
+    }
+  } else if (sheetName === CONFIG.TABS.ITC_PURCHASE) {
+    sheet.getRange(1, 1, 1, CONFIG.ITC_PURCHASE_HEADERS.length).setValues([CONFIG.ITC_PURCHASE_HEADERS]);
+    formatHeaderRow(sheet, CONFIG.ITC_PURCHASE_HEADERS.length);
+  } else if (sheetName === CONFIG.TABS.RCM) {
+    sheet.getRange(1, 1, 1, CONFIG.RCM_HEADERS.length).setValues([CONFIG.RCM_HEADERS]);
+    formatHeaderRow(sheet, CONFIG.RCM_HEADERS.length);
+  }
 
   let upsertCount = 0;
   const appendRows = [];
@@ -178,28 +217,104 @@ function handleUpsert(ss, sheetName, headers, rows) {
       const isGstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i;
       const cleanParty = (isGstRegex.test(rawParty) && (rawParty.toUpperCase() === rawGst || !rawGst)) ? '' : rawParty;
 
-      rowValues = [
-        rowId,
-        r.financialYear || r.fy || '',
-        r.quarter || r.q || '',
-        r.month || r.m || '',
-        r.invoiceDate || r.d || '',
-        cleanParty,
-        rawGst,
-        r.invoiceNo || r.invNo || r.n || '',
-        r.totalInvoiceValue || r.invVal || 0,
-        r.taxableValue || r.taxable || r.t || r.amount || 0,
-        r.igst || r.i || 0,
-        r.cgst || r.c || 0,
-        r.sgst || r.s || 0,
-        r.cess || 0,
-        r.totalTax || 0
-      ];
-      if (sheetName === CONFIG.TABS.RCM) {
-        rowValues.push(r.rcmCategory || r.category || 'Transport (GTA)');
-        rowValues.push(r.rcmTaxRate || r.taxRate || 5);
-        rowValues.push(r.rcmApplicable || 'Yes');
-        rowValues.push(r.eligibleItc || 0);
+      if (sheetName === CONFIG.TABS.GSTR1) {
+        // Col I: Taxable, Col J: IGST, Col K: CGST, Col L: SGST, Col M: Total Tax, Col N: Total Invoice Value
+        const tVal = Number(r.taxableValue || r.taxable || r.t || 0) || 0;
+        const iVal = Number(r.igst || r.i || 0) || 0;
+        const cVal = Number(r.cgst || r.c || 0) || 0;
+        const sVal = Number(r.sgst || r.s || 0) || 0;
+        const totTax = Number(r.totalTax) || (iVal + cVal + sVal);
+        const totInvVal = Number(r.totalInvoiceValue || r.invVal) || (tVal + totTax);
+
+        rowValues = [
+          rowId,
+          r.financialYear || r.fy || '',
+          r.quarter || r.q || '',
+          r.month || r.m || '',
+          r.invoiceDate || r.entryDate || r.d || '',
+          cleanParty,
+          rawGst,
+          r.invoiceNo || r.invNo || r.n || '',
+          tVal,
+          iVal,
+          cVal,
+          sVal,
+          totTax,
+          totInvVal
+        ];
+      } else if (sheetName === CONFIG.TABS.ITC_PURCHASE) {
+        // Purchase: Col I: Taxable, Col J: IGST, Col K: CGST, Col L: SGST, Col M: CESS, Col N: Total Tax, Col O: Total Invoice Value
+        const tVal = Number(r.taxableValue || r.taxable || r.t || 0) || 0;
+        const iVal = Number(r.igst || r.i || 0) || 0;
+        const cVal = Number(r.cgst || r.c || 0) || 0;
+        const sVal = Number(r.sgst || r.s || 0) || 0;
+        const cessVal = Number(r.cess) || 0;
+        const totTax = Number(r.totalTax) || (iVal + cVal + sVal + cessVal);
+        const totInvVal = Number(r.totalInvoiceValue || r.invVal) || (tVal + totTax);
+
+        rowValues = [
+          rowId,
+          r.financialYear || r.fy || '',
+          r.quarter || r.q || '',
+          r.month || r.m || '',
+          r.invoiceDate || r.entryDate || r.d || '',
+          cleanParty,
+          rawGst,
+          r.invoiceNo || r.invNo || r.n || '',
+          tVal,
+          iVal,
+          cVal,
+          sVal,
+          cessVal,
+          totTax,
+          totInvVal
+        ];
+      } else if (sheetName === CONFIG.TABS.RCM) {
+        // RCM: Entry Date, Transporter Name, GST No, Transporter L.R. No., Amount, IGST 5%, CGST 2.5%, SGST 2.5%, Total Tax
+        const amt = Number(r.amount || r.taxableValue || r.taxable || r.t || 0) || 0;
+        const iVal = Number(r.igst || r.i || 0) || 0;
+        const cVal = Number(r.cgst || r.c || 0) || 0;
+        const sVal = Number(r.sgst || r.s || 0) || 0;
+        const totTax = Number(r.totalTax) || (iVal + cVal + sVal);
+
+        rowValues = [
+          rowId,
+          r.financialYear || r.fy || '',
+          r.quarter || r.q || '',
+          r.month || r.m || '',
+          r.entryDate || r.invoiceDate || r.d || '',
+          cleanParty,
+          rawGst,
+          r.lrNo || r.invoiceNo || r.invNo || r.n || '',
+          amt,
+          iVal,
+          cVal,
+          sVal,
+          totTax,
+          r.rcmCategory || r.category || 'Transport (GTA)',
+          r.rcmTaxRate || r.taxRate || 5,
+          r.rcmApplicable || 'Yes',
+          r.eligibleItc || totTax
+        ];
+      } else {
+        // GSTR-2B (or fallback standard tab) - 100% UNTOUCHED!
+        rowValues = [
+          rowId,
+          r.financialYear || r.fy || '',
+          r.quarter || r.q || '',
+          r.month || r.m || '',
+          r.invoiceDate || r.entryDate || r.d || '',
+          cleanParty,
+          rawGst,
+          r.invoiceNo || r.invNo || r.lrNo || r.n || '',
+          r.totalInvoiceValue || r.invVal || 0,
+          r.taxableValue || r.taxable || r.t || r.amount || 0,
+          r.igst || r.i || 0,
+          r.cgst || r.c || 0,
+          r.sgst || r.s || 0,
+          r.cess || 0,
+          r.totalTax || 0
+        ];
       }
     }
 
@@ -231,23 +346,35 @@ function handleDelete(ss, sheetName, ids) {
   }
 
   const lastRow = sheet.getLastRow();
-  if (lastRow <= 1 || !ids || ids.length === 0) {
+  const lastCol = sheet.getLastColumn();
+  if (lastRow <= 1 || lastCol === 0 || !ids || ids.length === 0) {
     return jsonResponse({ ok: true, count: 0, sheet: sheetName });
   }
 
   const targetIds = new Set(ids.map(x => String(x).trim()));
-  const existingValues = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  // Batch read all data rows at once
+  const allData = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+  const keptRows = [];
   let deletedCount = 0;
 
-  // Iterate backwards when deleting rows
-  for (let i = existingValues.length - 1; i >= 0; i--) {
-    const rowId = String(existingValues[i][0] || '').trim();
+  for (let i = 1; i < allData.length; i++) {
+    const rowId = String(allData[i][0] || '').trim();
     if (targetIds.has(rowId)) {
-      sheet.deleteRow(i + 2);
       deletedCount++;
+    } else {
+      keptRows.push(allData[i]);
     }
   }
 
+  // Clear data rows (row 2 downwards) in one call
+  sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+
+  // If there are remaining rows, write them back in one batch call
+  if (keptRows.length > 0) {
+    sheet.getRange(2, 1, keptRows.length, lastCol).setValues(keptRows);
+  }
+
+  SpreadsheetApp.flush();
   return jsonResponse({ ok: true, count: deletedCount, sheet: sheetName });
 }
 

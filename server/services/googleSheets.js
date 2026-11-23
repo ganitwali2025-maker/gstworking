@@ -1,6 +1,43 @@
 import fs from 'fs';
 
-// Standard 15 columns required by Step 2 across registers
+// GSTR-1 specific 14 columns matching user format
+export const GSTR1_SHEET_HEADERS = [
+  'ID',
+  'Financial Year',
+  'Quarter',
+  'Month',
+  'Invoice Date',
+  'Supplier / Party Name',
+  'GST No',
+  'Invoice No',
+  'Taxable Value',
+  'IGST',
+  'CGST',
+  'SGST',
+  'Total Tax',
+  'Total Invoice Value'
+];
+
+// ITC-Purchase specific 15 columns (Invoice Value moved to after Total Tax)
+export const ITC_PURCHASE_SHEET_HEADERS = [
+  'ID',
+  'Financial Year',
+  'Quarter',
+  'Month',
+  'Invoice Date',
+  'Supplier / Party Name',
+  'GST No',
+  'Invoice No',
+  'Taxable Value',
+  'IGST',
+  'CGST',
+  'SGST',
+  'CESS',
+  'Total Tax',
+  'Total Invoice Value'
+];
+
+// Standard 15 columns required across registers
 export const STANDARD_SHEET_HEADERS = [
   'ID',
   'Financial Year',
@@ -36,6 +73,12 @@ export const REGISTER_TABS = {
 };
 
 export function getHeadersForTab(tabName) {
+  if (tabName === REGISTER_TABS.GSTR1) {
+    return GSTR1_SHEET_HEADERS;
+  }
+  if (tabName === REGISTER_TABS.ITC_PURCHASE) {
+    return ITC_PURCHASE_SHEET_HEADERS;
+  }
   if (tabName === REGISTER_TABS.RCM) {
     return RCM_SHEET_HEADERS;
   }
@@ -126,6 +169,57 @@ export function mapRecordToSheetRow(rec, tabName = 'GSTR-1') {
   const isGstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i;
   const p = (isGstRegex.test(rawP.trim()) && (rawP.trim().toUpperCase() === g || !g)) ? '' : rawP;
   const n = String(rec.n || rec.invNo || rec.invoiceNo || rec.lrNo || '');
+
+  if (tabName === REGISTER_TABS.GSTR1) {
+    // Exact GSTR-1 sequence:
+    // ID, FY, Quarter, Month, Invoice Date, Supplier / Party Name, GST No, Invoice No,
+    // Taxable Value, IGST, CGST, SGST, Total Tax, Total Invoice Value
+    return {
+      id,
+      values: [
+        id,
+        fy,
+        q,
+        m,
+        d,
+        p,
+        g,
+        n,
+        tNum,
+        iNum,
+        cNum,
+        sNum,
+        totalTax,
+        invVal
+      ]
+    };
+  }
+
+  if (tabName === REGISTER_TABS.ITC_PURCHASE) {
+    // Exact Purchase sequence: Invoice Value moved to after Total Tax
+    // ID, FY, Quarter, Month, Invoice Date, Supplier / Party Name, GST No, Invoice No,
+    // Taxable Value, IGST, CGST, SGST, CESS, Total Tax, Total Invoice Value
+    return {
+      id,
+      values: [
+        id,
+        fy,
+        q,
+        m,
+        d,
+        p,
+        g,
+        n,
+        tNum,
+        iNum,
+        cNum,
+        sNum,
+        cessNum,
+        totalTax,
+        invVal
+      ]
+    };
+  }
 
   const standardValues = [
     id,
@@ -251,8 +345,8 @@ async function sendToAppsScript(payload) {
  */
 export async function ensureAllTabs() {
   const tabs = [
-    { name: REGISTER_TABS.GSTR1, headers: STANDARD_SHEET_HEADERS },
-    { name: REGISTER_TABS.ITC_PURCHASE, headers: STANDARD_SHEET_HEADERS },
+    { name: REGISTER_TABS.GSTR1, headers: GSTR1_SHEET_HEADERS },
+    { name: REGISTER_TABS.ITC_PURCHASE, headers: ITC_PURCHASE_SHEET_HEADERS },
     { name: REGISTER_TABS.RCM, headers: RCM_SHEET_HEADERS },
     { name: REGISTER_TABS.GSTR2B, headers: STANDARD_SHEET_HEADERS }
   ];
@@ -436,7 +530,8 @@ export function mapSheetRowToRecord(values, tabName = 'GSTR-1') {
   const id = String(values[0] || '').trim();
   if (!id) return null;
 
-  const fy = String(values[1] || 'FY 2026–27').trim();
+  const rawFy = String(values[1] || '').trim();
+  const fy = (rawFy && rawFy !== 'ALL') ? rawFy : 'FY 2026–27';
   const q = String(values[2] || '').trim();
   const m = String(values[3] || '').trim();
   const rawDate = String(values[4] || '').trim();
@@ -461,13 +556,36 @@ export function mapSheetRowToRecord(values, tabName = 'GSTR-1') {
   const cleanParty = (isGstRegex.test(p) && (p.toUpperCase() === g || !g)) ? '' : p;
   const n = String(values[7] || '').trim();
 
-  // Values in Google Sheets are in Rupees. In registers, amounts are stored in paise (multiplied by 100)
-  const invValRupees = Number(values[8]) || 0;
-  const taxableRupees = Number(values[9]) || 0;
-  const igstRupees = Number(values[10]) || 0;
-  const cgstRupees = Number(values[11]) || 0;
-  const sgstRupees = Number(values[12]) || 0;
-  const cessRupees = Number(values[13]) || 0;
+  let invValRupees = 0;
+  let taxableRupees = 0;
+  let igstRupees = 0;
+  let cgstRupees = 0;
+  let sgstRupees = 0;
+  let cessRupees = 0;
+
+  if (tabName === REGISTER_TABS.GSTR1) {
+    taxableRupees = Number(values[8]) || 0;
+    igstRupees = Number(values[9]) || 0;
+    cgstRupees = Number(values[10]) || 0;
+    sgstRupees = Number(values[11]) || 0;
+    const totalTaxRupees = Number(values[12]) || (igstRupees + cgstRupees + sgstRupees);
+    invValRupees = Number(values[13]) || (taxableRupees + totalTaxRupees);
+  } else if (tabName === REGISTER_TABS.ITC_PURCHASE) {
+    taxableRupees = Number(values[8]) || 0;
+    igstRupees = Number(values[9]) || 0;
+    cgstRupees = Number(values[10]) || 0;
+    sgstRupees = Number(values[11]) || 0;
+    cessRupees = Number(values[12]) || 0;
+    const totalTaxRupees = Number(values[13]) || (igstRupees + cgstRupees + sgstRupees + cessRupees);
+    invValRupees = Number(values[14]) || (taxableRupees + totalTaxRupees);
+  } else {
+    invValRupees = Number(values[8]) || 0;
+    taxableRupees = Number(values[9]) || 0;
+    igstRupees = Number(values[10]) || 0;
+    cgstRupees = Number(values[11]) || 0;
+    sgstRupees = Number(values[12]) || 0;
+    cessRupees = Number(values[13]) || 0;
+  }
 
   const invValPaise = Math.round(invValRupees * 100);
   const taxablePaise = Math.round(taxableRupees * 100);

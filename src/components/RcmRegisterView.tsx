@@ -158,13 +158,30 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
   const selectedFy = fy || 'ALL';
   const selectedMonth = month || 'ALL';
 
-  // Step 5: Load data for RCM tab on initial mount
-  useEffect(() => {
-    loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM, []).then((res) => {
+  const handleRefresh = async () => {
+    try {
+      const res = await loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM);
       if (res.rows) {
         setRecords(res.rows);
       }
-    });
+      if (res.error) {
+        notify(res.error);
+      } else {
+        notify('RCM tab data reloaded successfully');
+      }
+    } catch {
+      notify('RCM refreshed');
+    }
+  };
+
+  // Step 5: Load data for RCM tab on initial mount & window focus
+  useEffect(() => {
+    handleRefresh();
+
+    const onWindowFocus = () => {
+      handleRefresh();
+    };
+    window.addEventListener('focus', onWindowFocus);
 
     const handleSynced = (e: any) => {
       if (e.detail?.tab === REGISTER_TABS.RCM) {
@@ -175,20 +192,11 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
       }
     };
     window.addEventListener('register-synced', handleSynced);
-    return () => window.removeEventListener('register-synced', handleSynced);
+    return () => {
+      window.removeEventListener('focus', onWindowFocus);
+      window.removeEventListener('register-synced', handleSynced);
+    };
   }, []);
-
-  const handleRefresh = async () => {
-    try {
-      const res = await loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM, records);
-      if (res.rows) {
-        setRecords(res.rows);
-      }
-      notify('RCM tab data reloaded successfully');
-    } catch {
-      notify('RCM refreshed');
-    }
-  };
 
   // Step 4: Filter records strictly by selected FY, Month and Search Query
   const displayRecords = useMemo(() => {
@@ -320,26 +328,45 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
     notify('Record updated successfully');
   };
 
-  const handleClearData = () => {
+  const handleClearData = async () => {
     if (isLocked) {
       notify('Sheet is locked.');
       return;
     }
-    if (window.confirm('Clear all RCM register records?')) {
-      const toDeleteIds = records.map((r) => r.id);
-      persistRecords([]);
-      clearRegisterRows(REGISTER_TABS.RCM, toDeleteIds, selectedFy, selectedMonth);
-      notify('RCM data cleared');
+    const toDeleteIds = displayRecords.map((r) => r.id);
+    if (toDeleteIds.length === 0) {
+      notify('No records to clear.');
+      return;
+    }
+    const periodDesc = `${selectedMonth !== 'ALL' ? selectedMonth : 'All Months'} ${selectedFy !== 'ALL' ? selectedFy : ''}`.trim();
+    if (window.confirm(`Clear all ${periodDesc} RCM register records?`)) {
+      // 1. Google Sheets batch delete first (Rule 3)
+      const res = await clearRegisterRows(REGISTER_TABS.RCM, toDeleteIds, selectedFy, selectedMonth);
+      if (!res.success) {
+        notify(res.error || 'Google Sheet clear failed. Records not deleted.');
+        return;
+      }
+      // 2. Only on success, remove from app state & localStorage
+      const idSet = new Set(toDeleteIds);
+      const remaining = records.filter((r) => !idSet.has(r.id));
+      persistRecords(remaining);
+      notify(`${periodDesc} RCM data cleared`);
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (isLocked) {
       notify('Sheet is locked.');
       return;
     }
+    // 1. Google Sheets delete first (Rule 3)
+    const res = await deleteRegisterRow(REGISTER_TABS.RCM, id);
+    if (!res.success) {
+      notify(res.error || 'Google Sheet delete failed. Record not deleted.');
+      return;
+    }
+    // 2. Only on success, remove from app state & localStorage
     persistRecords(records.filter((r) => r.id !== id));
-    deleteRegisterRow(REGISTER_TABS.RCM, id);
     notify('Record deleted');
   };
 
@@ -640,18 +667,14 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
                 <th style={{ textAlign: 'center' }}>FINANCIAL YEAR</th>
                 <th style={{ textAlign: 'center' }}>QUARTER</th>
                 <th style={{ textAlign: 'center' }}>MONTH</th>
-                <th style={{ textAlign: 'center' }}>INVOICE DATE</th>
-                <th className="col-party" style={{ minWidth: '220px', textAlign: 'left' }}>SUPPLIER / PARTY NAME</th>
-                <th style={{ textAlign: 'center' }}>GST NO</th>
-                <th className="col-inv" style={{ textAlign: 'left' }}>INVOICE NO / L.R. NO</th>
-                <th style={{ textAlign: 'center' }}>INVOICE VALUE</th>
-                <th style={{ textAlign: 'center' }}>TAXABLE VALUE</th>
-                <th style={{ textAlign: 'center' }}>IGST</th>
-                <th style={{ textAlign: 'center' }}>CGST</th>
-                <th style={{ textAlign: 'center' }}>SGST</th>
-                <th style={{ textAlign: 'center' }}>CESS</th>
+                <th style={{ textAlign: 'center' }}>ENTRY DATE</th>
+                <th className="col-party" style={{ minWidth: '220px', textAlign: 'left' }}>TRANSPORTER NAME</th>
+                <th className="col-inv" style={{ textAlign: 'left' }}>TRANSPORTER L.R. NO.</th>
+                <th style={{ textAlign: 'center' }}>AMOUNT</th>
+                <th style={{ textAlign: 'center' }}>IGST 5%</th>
+                <th style={{ textAlign: 'center' }}>CGST 2.5%</th>
+                <th style={{ textAlign: 'center' }}>SGST 2.5%</th>
                 <th style={{ textAlign: 'center' }}>TOTAL TAX</th>
-                <th style={{ textAlign: 'center' }}>RCM CATEGORY</th>
                 <th style={{ textAlign: 'center' }}>ACTION</th>
               </tr>
             </thead>
@@ -660,7 +683,6 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
                 displayRecords.map((r) => {
                   const cessVal = r.cess || 0;
                   const totalTax = (r.igst || 0) + (r.cgst || 0) + (r.sgst || 0) + cessVal;
-                  const invVal = r.invVal || ((r.amount || 0) + totalTax);
 
                   return (
                     <tr key={r.id}>
@@ -678,7 +700,6 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
                           return val || '—';
                         })()}
                       </td>
-                      <td className="gst-no" style={{ textAlign: 'center' }}>{r.gstNo || '—'}</td>
                       <td className="inv-no" style={{ textAlign: 'left' }}>
                         {r.lrNo || '—'}
                         {r.sheetSynced && (
@@ -687,14 +708,11 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
                           </span>
                         )}
                       </td>
-                      <td className="num-val" style={{ textAlign: 'center', fontWeight: 600 }}>{fmtVal(invVal)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.amount)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.igst)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.cgst)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.sgst)}</td>
-                      <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(cessVal)}</td>
                       <td className="num-val total-tax" style={{ textAlign: 'center' }}>{fmtVal(totalTax)}</td>
-                      <td style={{ textAlign: 'center', fontSize: '12px' }}>{r.category || 'Transport (GTA)'}</td>
                       <td className="act-col" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <button
                           type="button"

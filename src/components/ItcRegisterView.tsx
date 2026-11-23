@@ -6,7 +6,7 @@ import ItcImportModal from './ItcImportModal';
 import { HeadingSearchBar } from './HeadingTemplate';
 import {
   REGISTER_TABS,
-  STANDARD_SHEET_HEADERS,
+  ITC_PURCHASE_SHEET_HEADERS,
   filterRegisterRows,
   loadRegisterRows,
   mapRowToSheetRow
@@ -102,7 +102,7 @@ const SEED_ITC_RECORDS: ItcPurchaseRecord[] = [
 ];
 
 export const PURCHASE_SHEET_NAME = REGISTER_TABS.ITC_PURCHASE;
-export const PURCHASE_SHEET_HEADERS = STANDARD_SHEET_HEADERS;
+export const PURCHASE_SHEET_HEADERS = ITC_PURCHASE_SHEET_HEADERS;
 
 export function mapItcToSheetRow(r: ItcPurchaseRecord): { id: string; values: (string | number)[] } {
   return mapRowToSheetRow(r, REGISTER_TABS.ITC_PURCHASE);
@@ -193,13 +193,30 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
     } catch { }
   };
 
-  // Step 5: Load data for ITC-Purchase tab on initial mount
-  useEffect(() => {
-    loadRegisterRows<ItcPurchaseRecord>(REGISTER_TABS.ITC_PURCHASE, []).then((res) => {
+  const handleRefresh = async () => {
+    try {
+      const res = await loadRegisterRows<ItcPurchaseRecord>(REGISTER_TABS.ITC_PURCHASE);
       if (res.rows) {
         setRecords(res.rows);
       }
-    });
+      if (res.error) {
+        showToast(res.error);
+      } else {
+        showToast('ITC-Purchase tab data reloaded successfully');
+      }
+    } catch {
+      showToast('ITC-Purchase refreshed');
+    }
+  };
+
+  // Step 5: Load data for ITC-Purchase tab on initial mount & window focus
+  useEffect(() => {
+    handleRefresh();
+
+    const onWindowFocus = () => {
+      handleRefresh();
+    };
+    window.addEventListener('focus', onWindowFocus);
 
     const handleSynced = (e: any) => {
       if (e.detail?.tab === REGISTER_TABS.ITC_PURCHASE) {
@@ -210,20 +227,11 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
       }
     };
     window.addEventListener('register-synced', handleSynced);
-    return () => window.removeEventListener('register-synced', handleSynced);
+    return () => {
+      window.removeEventListener('focus', onWindowFocus);
+      window.removeEventListener('register-synced', handleSynced);
+    };
   }, []);
-
-  const handleRefresh = async () => {
-    try {
-      const res = await loadRegisterRows<ItcPurchaseRecord>(REGISTER_TABS.ITC_PURCHASE, records);
-      if (res.rows) {
-        setRecords(res.rows);
-      }
-      showToast('ITC-Purchase tab data reloaded successfully');
-    } catch {
-      showToast('ITC-Purchase refreshed');
-    }
-  };
 
   // Step 4: Filter display records strictly by selected FY, Month and Search Query
   const displayRecords = useMemo(() => {
@@ -293,25 +301,16 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
       message: 'Kya aap is purchase record ko delete karna chahte hain?',
       confirmLabel: 'Delete',
       onConfirm: async () => {
+        // 1. Google Sheets delete first (Rule 3)
+        const res = await deleteRegisterRow(REGISTER_TABS.ITC_PURCHASE, id);
+        if (!res.success) {
+          showToast(res.error || 'Google Sheet delete failed. Record not deleted.');
+          return;
+        }
+
+        // 2. Only on success, remove from app state & localStorage
         persistRecords(records.filter((r) => r.id !== id));
         showToast('Record deleted');
-
-        // Backend delete
-        fetch(`/api/registers/${REGISTER_TABS.ITC_PURCHASE}/${id}`, { method: 'DELETE' }).catch(() => {});
-
-        try {
-          const res = await syncModuleToSheets({
-            action: 'delete',
-            sheet: PURCHASE_SHEET_NAME,
-            headers: PURCHASE_SHEET_HEADERS,
-            ids: [id]
-          });
-          if (!res.success) {
-            showToast('Data save ho gaya, par Google Sheet sync fail hua');
-          }
-        } catch {
-          showToast('Data save ho gaya, par Google Sheet sync fail hua');
-        }
       }
     });
   };
@@ -371,38 +370,29 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
     }
 
     const periodDesc = `${selectedMonth !== 'ALL' ? selectedMonth : 'All Months'} ${selectedFy !== 'ALL' ? selectedFy : ''}`.trim();
+    const toDeleteIds = displayRecords.map((r) => r.id);
+    if (toDeleteIds.length === 0) {
+      showToast('No records to clear.');
+      return;
+    }
 
     setConfirmDialog({
       title: 'Clear Data Confirmation',
       message: `${periodDesc} ka saara data delete hoga. Pakka?`,
       confirmLabel: 'Delete All',
       onConfirm: async () => {
-        const toDeleteIds = displayRecords.map((r) => r.id);
-        const remaining = records.filter((r) => !toDeleteIds.includes(r.id));
+        // 1. Google Sheets batch delete first (Rule 3)
+        const res = await clearRegisterRows(REGISTER_TABS.ITC_PURCHASE, toDeleteIds, selectedFy, selectedMonth);
+        if (!res.success) {
+          showToast(res.error || 'Google Sheet clear failed. Records not deleted.');
+          return;
+        }
+
+        // 2. Only on success, remove from app state & localStorage
+        const idSet = new Set(toDeleteIds);
+        const remaining = records.filter((r) => !idSet.has(r.id));
         persistRecords(remaining);
         showToast(`${periodDesc} data cleared`);
-
-        // Backend clear
-        try {
-          const params = new URLSearchParams();
-          if (selectedFy !== 'ALL') params.append('fy', selectedFy);
-          if (selectedMonth !== 'ALL') params.append('m', selectedMonth);
-          fetch(`/api/registers/${REGISTER_TABS.ITC_PURCHASE}/actions/clear?${params.toString()}`, { method: 'DELETE' }).catch(() => {});
-        } catch {}
-
-        try {
-          const res = await syncModuleToSheets({
-            action: 'delete',
-            sheet: PURCHASE_SHEET_NAME,
-            headers: PURCHASE_SHEET_HEADERS,
-            ids: toDeleteIds
-          });
-          if (!res.success) {
-            showToast('Data save ho gaya, par Google Sheet sync fail hua');
-          }
-        } catch {
-          showToast('Data save ho gaya, par Google Sheet sync fail hua');
-        }
       }
     });
   };
@@ -698,13 +688,13 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
                 <th className="col-party" style={{ minWidth: '220px', textAlign: 'left' }}>SUPPLIER / PARTY NAME</th>
                 <th style={{ textAlign: 'center' }}>GST NO</th>
                 <th className="col-inv" style={{ textAlign: 'left' }}>INVOICE NO</th>
-                <th style={{ textAlign: 'center' }}>INVOICE VALUE</th>
                 <th style={{ textAlign: 'center' }}>TAXABLE VALUE</th>
                 <th style={{ textAlign: 'center' }}>IGST</th>
                 <th style={{ textAlign: 'center' }}>CGST</th>
                 <th style={{ textAlign: 'center' }}>SGST</th>
                 <th style={{ textAlign: 'center' }}>CESS</th>
                 <th style={{ textAlign: 'center' }}>TOTAL TAX</th>
+                <th style={{ textAlign: 'center' }}>TOTAL INVOICE VALUE</th>
                 <th style={{ textAlign: 'center' }}>ACTION</th>
               </tr>
             </thead>
@@ -739,13 +729,13 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
                           </span>
                         )}
                       </td>
-                      <td className="num-val" style={{ textAlign: 'center', fontWeight: 600, color: '#350B5E' }}>{fmtVal(rowTotalInv)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.t)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.i)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.c)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.s)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.cess)}</td>
                       <td className="num-val total-tax" style={{ textAlign: 'center' }}>{fmtVal(rowTax)}</td>
+                      <td className="num-val" style={{ textAlign: 'center', fontWeight: 600, color: '#350B5E' }}>{fmtVal(rowTotalInv)}</td>
                       <td className="act-col" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <button
                           type="button"

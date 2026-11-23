@@ -4,7 +4,7 @@ import { SEED_MONTHLY_DATA, SEED_STEPS, SEED_SETTINGS, SEED_INVOICES, SEED_RCM }
 import { FYS } from '../utils/gstFormat';
 import { getViewFromPath, navigateTo, getQueryParams } from '../utils/router';
 import { syncModuleToSheets, readModuleFromSheets } from '../services/sheetSync';
-import { STANDARD_SHEET_HEADERS, mapRowToSheetRow, mapSheetRowToAppRecord } from '../services/registerService';
+import { GSTR1_SHEET_HEADERS, mapRowToSheetRow, mapSheetRowToAppRecord } from '../services/registerService';
 
 const LOCAL_STORAGE_KEY_INVOICES = 'gstr1_register_v4';
 const LOCAL_STORAGE_KEY_LOCK = 'gstr1_lock_v1';
@@ -105,9 +105,13 @@ export function useGstStore() {
   const [invoices, setInvoices] = useState<InvoiceRecord[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY_INVOICES);
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      return SEED_INVOICES;
     } catch {
-      return [];
+      return SEED_INVOICES;
     }
   });
 
@@ -248,6 +252,7 @@ export function useGstStore() {
         const mapped = sheetRes.rows.map((r: any) => mapSheetRowToAppRecord(r.values || r, 'GSTR-1')).filter(Boolean);
         setInvoices(mapped);
         persistInvoices(mapped, false);
+        return;
       }
     } catch (_) {}
   };
@@ -283,6 +288,11 @@ export function useGstStore() {
     fetchApiSteps();
     fetchApiSettings();
 
+    const onWindowFocus = () => {
+      fetchApiInvoices();
+    };
+    window.addEventListener('focus', onWindowFocus);
+
     const handleSynced = (e: any) => {
       if (e.detail?.tab === 'GSTR-1') {
         try {
@@ -292,7 +302,10 @@ export function useGstStore() {
       }
     };
     window.addEventListener('register-synced', handleSynced);
-    return () => window.removeEventListener('register-synced', handleSynced);
+    return () => {
+      window.removeEventListener('focus', onWindowFocus);
+      window.removeEventListener('register-synced', handleSynced);
+    };
   }, [fy]);
 
   // Invoice Actions
@@ -347,34 +360,39 @@ export function useGstStore() {
   };
 
   const deleteInvoice = async (id: string) => {
+    // 1. Pehle Google Sheet se delete karo (Rule 3)
+    const sheetRes = await syncModuleToSheets({
+      action: 'delete',
+      sheet: 'GSTR-1',
+      headers: GSTR1_SHEET_HEADERS,
+      ids: [id]
+    });
+
+    if (!sheetRes.success) {
+      showToast(sheetRes.error ? `Google Sheet delete failed: ${sheetRes.error}` : 'Google Sheet delete failed. Record not deleted.');
+      return;
+    }
+
+    // 2. Sheet me success milne par hi app state & localStorage se hatao
     pushInvoiceHistory(invoices);
     const updated = invoices.filter(r => r.id !== id);
     setInvoices(updated);
     if (selectedInvoiceId === id) setSelectedInvoiceId(null);
     persistInvoices(updated);
+    showToast('Invoice deleted');
+
+    // 3. Backend DB se hatao
     try {
       const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.sheetWarning) {
-          showToast(json.sheetWarning);
-        }
+      if (!res.ok) {
+        console.warn('Backend delete returned status', res.status);
       }
-    } catch (e) {}
-
-    // Ensure deleted directly from Google Sheets
-    try {
-      await syncModuleToSheets({
-        action: 'delete',
-        sheet: 'GSTR-1',
-        headers: STANDARD_SHEET_HEADERS,
-        ids: [id]
-      });
-    } catch (_) {}
+    } catch (e) {
+      console.warn('Backend delete network error:', e);
+    }
   };
 
   const clearInvoices = async (targetFy?: string, targetMonth?: string) => {
-    pushInvoiceHistory(invoices);
     const normalizeMonth = (m?: string): string => {
       if (!m) return '';
       const clean = m.trim().toLowerCase();
@@ -394,25 +412,51 @@ export function useGstStore() {
     const hasFyFilter = targetFy && targetFy !== 'ALL';
     const hasMonthFilter = targetMonth && targetMonth !== 'ALL';
 
-    const updated = invoices.filter(r => {
+    const toDeleteIds: string[] = [];
+    const remaining = invoices.filter(r => {
       const fyMatch = !hasFyFilter || normalizeFy(r.fy) === normalizeFy(targetFy);
       const monthMatch = !hasMonthFilter || normalizeMonth(r.m) === normalizeMonth(targetMonth);
       if (fyMatch && monthMatch) {
+        toDeleteIds.push(r.id);
         return false;
       }
       return true;
     });
 
-    setInvoices(updated);
-    setSelectedInvoiceId(null);
-    persistInvoices(updated);
+    if (toDeleteIds.length === 0) {
+      showToast('No records to clear.');
+      return;
+    }
 
+    // 1. Pehle Google Sheet se ek hi batch request me saare IDs delete karo (Rule 3)
+    const sheetRes = await syncModuleToSheets({
+      action: 'delete',
+      sheet: 'GSTR-1',
+      headers: GSTR1_SHEET_HEADERS,
+      ids: toDeleteIds
+    });
+
+    if (!sheetRes.success) {
+      showToast(sheetRes.error ? `Google Sheet clear failed: ${sheetRes.error}` : 'Google Sheet clear failed. Records not deleted.');
+      return;
+    }
+
+    // 2. Sheet me success milne par hi app state & localStorage se hatao
+    pushInvoiceHistory(invoices);
+    setInvoices(remaining);
+    setSelectedInvoiceId(null);
+    persistInvoices(remaining);
+    showToast(`Cleared ${toDeleteIds.length} records`);
+
+    // 3. Backend DB se hatao
     try {
       const params = new URLSearchParams();
       if (hasFyFilter) params.append('fy', targetFy);
       if (hasMonthFilter) params.append('m', targetMonth);
       await fetch(`/api/invoices/actions/clear?${params.toString()}`, { method: 'DELETE' });
-    } catch (e) {}
+    } catch (e) {
+      console.warn('Backend clear network error:', e);
+    }
   };
 
   const batchImportInvoices = async (
@@ -425,6 +469,7 @@ export function useGstStore() {
     setInvoices(updated);
     persistInvoices(updated);
 
+    const effectiveFy = (importFy && importFy !== 'ALL' && importFy.trim()) ? importFy : undefined;
     try {
       const res = await fetch('/api/invoices/actions/bulk-import', {
         method: 'POST',
@@ -432,7 +477,7 @@ export function useGstStore() {
         body: JSON.stringify({
           items: newRecords,
           fixedMonth: importMonth,
-          fixedFy: importFy
+          fixedFy: effectiveFy
         })
       });
       if (res.ok) {
@@ -452,7 +497,7 @@ export function useGstStore() {
         const sheetRes = await syncModuleToSheets({
           action: 'upsert',
           sheet: 'GSTR-1',
-          headers: STANDARD_SHEET_HEADERS,
+          headers: GSTR1_SHEET_HEADERS,
           rows
         });
         if (sheetRes.success) {
@@ -470,7 +515,7 @@ export function useGstStore() {
         const sheetRes = await syncModuleToSheets({
           action: 'upsert',
           sheet: 'GSTR-1',
-          headers: STANDARD_SHEET_HEADERS,
+          headers: GSTR1_SHEET_HEADERS,
           rows
         });
         if (sheetRes.success) {

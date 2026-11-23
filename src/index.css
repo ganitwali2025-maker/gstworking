@@ -1304,14 +1304,14 @@ tfoot td {
   align-items: center;
   gap: 8px;
   padding: 0 14px;
-  height: 35px;
-  min-height: 35px;
+  height: 38px;
+  min-height: 38px;
   box-sizing: border-box;
-  border-radius: 6px;
-  background: #350B5E;
-  color: #ffffff;
-  border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: all 0.15s ease-in-out;
   cursor: pointer;
   user-select: none;
@@ -1319,47 +1319,45 @@ tfoot td {
 }
 
 .gstr1-select-wrapper:hover {
-  background: #250742;
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .gstr1-select-wrapper:focus-within {
-  background: #250742;
-  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.45);
+  background: #ffffff;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
 }
 
 .gstr1-select-icon {
   display: flex;
   align-items: center;
-  color: #ffffff;
+  color: #7c3aed;
   flex-shrink: 0;
 }
 
 .gstr1-select-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #ffffff;
-  letter-spacing: 0.3px;
-  user-select: none;
-  line-height: 1;
+  display: none;
 }
 
 .gstr1-select-field {
   border: none;
   background: transparent;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #ffffff;
+  color: #0f172a;
   cursor: pointer;
   outline: none;
-  padding: 0 18px 0 2px;
+  padding: 0 20px 0 0;
   margin: 0;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right center;
-  background-size: 11px 11px;
+  background-size: 12px 12px;
 }
 
 .gstr1-select-field option {
