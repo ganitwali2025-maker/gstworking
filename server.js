@@ -8,7 +8,6 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
 
 import invoiceRoutes from './server/routes/invoiceRoutes.js';
 import dashboardRoutes from './server/routes/dashboardRoutes.js';
@@ -44,7 +43,8 @@ if (fs.existsSync(path.join(__dirname, '.env'))) {
 
 export const app = express();
 const PORT = process.env.PORT || 3000;
-const isProd = process.env.NODE_ENV === 'production';
+const isVercel = Boolean(process.env.VERCEL || process.env.NOW_REGION);
+const isProd = isVercel || process.env.NODE_ENV === 'production';
 
 // Common middleware
 app.use(cors());
@@ -85,7 +85,8 @@ app.get('/api/health', (req, res) => {
 
 async function setupApp() {
   if (!isProd) {
-    // Development mode: Vite dev server middleware
+    // Development mode: Vite dev server middleware (dynamically imported so Vercel never bundles Vite)
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa'
@@ -131,17 +132,17 @@ async function setupApp() {
     });
   }
 
-  // Only start listening if run directly (not as imported module on Vercel)
-  if (process.env.VERCEL !== '1') {
-    app.listen(PORT, () => {
-      console.log(`\n==================================================`);
-      console.log(`🚀 GST App live on: http://localhost:${PORT}`);
-      console.log(`📡 Unified Backend & React Frontend ek saath chal rahe hain!`);
-      console.log(`==================================================\n`);
-    });
-  }
+  app.listen(PORT, () => {
+    console.log(`\n==================================================`);
+    console.log(`🚀 GST App live on: http://localhost:${PORT}`);
+    console.log(`📡 Unified Backend & React Frontend ek saath chal rahe hain!`);
+    console.log(`==================================================\n`);
+  });
 }
 
-setupApp();
+// Only launch standalone server locally (Vercel serverless handles execution via api/index.js)
+if (!isVercel) {
+  setupApp();
+}
 
 export default app;

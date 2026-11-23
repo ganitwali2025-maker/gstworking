@@ -28,11 +28,11 @@ export async function syncModuleToSheets(
     }
   } catch (_) {}
 
-  // 2. Direct fallback to Google Apps Script Web App (vital on Vercel)
+  // 2. Direct fallback to Google Apps Script Web App (vital on Vercel, uses text/plain to avoid browser CORS preflight)
   try {
     const directRes = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         secret: APPS_SCRIPT_SECRET,
         ...payload
@@ -70,11 +70,11 @@ export async function readModuleFromSheets(
     }
   } catch (_) {}
 
-  // 2. Direct fallback to Google Apps Script Web App (vital on Vercel)
+  // 2. Direct fallback to Google Apps Script Web App (vital on Vercel, uses text/plain to avoid browser CORS preflight)
   try {
     const directRes = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({
         secret: APPS_SCRIPT_SECRET,
         action: 'read',

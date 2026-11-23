@@ -269,6 +269,28 @@ export default function Gstr2bRegisterView({ showToast }: Gstr2bRegisterViewProp
     return () => window.removeEventListener('register-synced', handleSynced);
   }, []);
 
+  // When records are loaded, ensure active filter shows the records (auto-select Oct if records are in Oct)
+  useEffect(() => {
+    if (records.length > 0) {
+      if (selectedFy !== 'ALL') {
+        const hasFy = records.some((r) => normalizeFy(r.fy) === normalizeFy(selectedFy));
+        if (!hasFy) {
+          const firstFy = records.find((r) => r.fy)?.fy || 'ALL';
+          setSelectedFy(firstFy);
+        }
+      }
+
+      if (selectedMonth !== 'ALL') {
+        const hasMonth = records.some((r) => normalizeMonth(r.m) === normalizeMonth(selectedMonth));
+        if (!hasMonth) {
+          const firstMonth = records.find((r) => r.m)?.m;
+          const matchedOpt = MONTH_OPTIONS.find((m) => normalizeMonth(m.value) === normalizeMonth(firstMonth || ''));
+          setSelectedMonth(matchedOpt ? matchedOpt.value : 'ALL');
+        }
+      }
+    }
+  }, [records]);
+
   const handleRefresh = async () => {
     try {
       const res = await loadRegisterRows<Gstr2bRecord>(REGISTER_TABS.GSTR2B, records);
