@@ -9,6 +9,8 @@ import {
   STANDARD_SHEET_HEADERS,
   filterRegisterRows,
   loadRegisterRows,
+  deleteRegisterRow,
+  clearRegisterRows,
   mapRowToSheetRow
 } from '../services/registerService';
 
