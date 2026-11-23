@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { InvoiceRecord } from '../types/gst';
 import { pp, fm } from '../utils/gstFormat';
 
@@ -7,6 +7,8 @@ interface ModalProps {
   invoice: InvoiceRecord | null;
   isLocked: boolean;
   fy: string;
+  defaultMonth?: string;
+  defaultFy?: string;
   onClose: () => void;
   onSave: (record: InvoiceRecord) => void;
 }
@@ -16,12 +18,26 @@ export default function Modal({
   invoice,
   isLocked,
   fy,
+  defaultMonth,
+  defaultFy,
   onClose,
   onSave
 }: ModalProps) {
   if (!isOpen) return null;
 
-  const [date, setDate] = useState(invoice ? invoice.d : new Date().toISOString().slice(0, 10));
+  const initialDate = invoice
+    ? invoice.d
+    : defaultMonth && defaultMonth !== 'ALL'
+      ? (() => {
+          const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          const mi = MN.findIndex(x => x.toLowerCase() === defaultMonth.toLowerCase().slice(0, 3));
+          const mm = mi !== -1 ? String(mi + 1).padStart(2, '0') : '08';
+          const yr = (defaultFy && defaultFy !== 'ALL' ? defaultFy.replace(/[^0-9]/g, '').slice(0, 4) : '2026') || '2026';
+          return `${yr}-${mm}-01`;
+        })()
+      : new Date().toISOString().slice(0, 10);
+
+  const [date, setDate] = useState(initialDate);
   const [invoiceNo, setInvoiceNo] = useState(invoice ? invoice.n : '');
   const [partyName, setPartyName] = useState(invoice ? invoice.p : '');
   const [gstNo, setGstNo] = useState(invoice ? invoice.g : '');
@@ -64,11 +80,30 @@ export default function Modal({
       return setError('An invoice cannot have IGST together with CGST/SGST.');
     }
 
+    const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const QM_LABEL: Record<string, string> = {
+      Q1: 'Apr-Jun',
+      Q2: 'Jul-Sep',
+      Q3: 'Oct-Dec',
+      Q4: 'Jan-Mar'
+    };
+    const qOf = (mi: number): string => (mi >= 3 && mi <= 5 ? 'Q1' : mi >= 6 && mi <= 8 ? 'Q2' : mi >= 9 && mi <= 11 ? 'Q3' : 'Q4');
+
+    const dateParts = String(date || '').split('-').map(Number);
+    const dateMi = (dateParts.length >= 2 && !isNaN(dateParts[1])) ? dateParts[1] - 1 : 7;
+    const computedMonth = MN[dateMi] || 'Aug';
+    const computedQ = qOf(dateMi);
+    const computedQFormatted = `${computedQ} (${QM_LABEL[computedQ] || ''})`;
+
+    const saveFy = invoice ? invoice.fy : (defaultFy && defaultFy !== 'ALL' ? defaultFy : fy);
+    const saveMonth = invoice ? invoice.m : (defaultMonth && defaultMonth !== 'ALL' ? defaultMonth.slice(0, 3) : computedMonth);
+    const saveQ = invoice ? invoice.q : computedQFormatted;
+
     const newRecord: InvoiceRecord = {
       id: invoice ? invoice.id : 'inv-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      fy,
-      q: 'Q3',
-      m: 'Oct 2026',
+      fy: saveFy,
+      q: saveQ,
+      m: saveMonth,
       d: date,
       n: invoiceNo.trim(),
       p: partyName.trim(),
@@ -87,7 +122,7 @@ export default function Modal({
       <div className="mb">
         <h3>{invoice ? 'Edit Invoice' : 'Add New Invoice'}</h3>
         <div style={{ color: 'var(--mute)', fontSize: '13px', marginBottom: '12px' }}>
-          Period: Financial Year {fy}
+          Period: Financial Year {invoice ? invoice.fy : (defaultFy && defaultFy !== 'ALL' ? defaultFy : fy)} | Month: {invoice ? invoice.m : (defaultMonth && defaultMonth !== 'ALL' ? defaultMonth : 'Auto')}
         </div>
 
         <div className="fg">

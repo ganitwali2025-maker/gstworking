@@ -7,6 +7,8 @@ interface SidebarProps {
   isCollapsed: boolean;
 }
 
+const WORKING_STEP_VIEWS: ViewType[] = ['steps', 'g1', 'itc-reg', 'rcm', 'g2b', 'rec'];
+
 export default function Sidebar({ view, setView, isCollapsed }: SidebarProps) {
   const navItems: { id: ViewType; label: string; icon: React.ReactNode }[] = [
     {
@@ -60,7 +62,10 @@ export default function Sidebar({ view, setView, isCollapsed }: SidebarProps) {
 
       <div className="nav-items" style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
         {navItems.map((item) => {
-          const isActive = view === item.id || (view === 'g1' && item.id === 'steps');
+          const isActive =
+            item.id === 'steps'
+              ? WORKING_STEP_VIEWS.includes(view)
+              : view === item.id;
           return (
             <button
               key={item.id}

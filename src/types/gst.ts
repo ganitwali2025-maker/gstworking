@@ -13,6 +13,7 @@ export interface InvoiceRecord {
   i: number;
   c: number;
   s: number;
+  sheetSynced?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

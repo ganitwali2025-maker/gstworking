@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BusinessSettings } from '../types/gst';
 
 interface SettingsViewProps {
@@ -15,7 +15,7 @@ export default function SettingsView({ settings, onSave }: SettingsViewProps) {
     setFormData(settings);
   }, [settings]);
 
-  const handleChange = (field: keyof BusinessSettings, value: any) => {
+  const handleChange = <K extends keyof BusinessSettings>(field: K, value: BusinessSettings[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 

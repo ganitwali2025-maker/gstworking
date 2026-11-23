@@ -1,28 +1,55 @@
 import { getDb, saveDb } from '../data/store.js';
+import googleSheets from '../services/googleSheets.js';
 
 const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const QM_LABEL = {
+  Q1: 'Apr-Jun',
+  Q2: 'Jul-Sep',
+  Q3: 'Oct-Dec',
+  Q4: 'Jan-Mar'
+};
 const qOf = (mi) => (mi >= 3 && mi <= 5 ? 'Q1' : mi >= 6 && mi <= 8 ? 'Q2' : mi >= 9 && mi <= 11 ? 'Q3' : 'Q4');
 const fyOf = (y, mi) => {
   const a = mi >= 3 ? y : y - 1;
   return 'FY ' + a + '–' + String(a + 1).slice(2);
 };
 
+export const normalizeFy = (str) => {
+  if (!str) return '';
+  const digits = String(str).replace(/[^0-9]/g, '');
+  if (digits) return digits;
+  return String(str).replace(/^FY\s*/i, '').replace(/[\s–-]/g, '').trim().toLowerCase();
+};
+
+export const normalizeMonth = (str) => {
+  const clean = String(str || '').trim().toLowerCase();
+  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  for (const mon of months) {
+    if (clean.startsWith(mon) || clean.includes(mon)) return mon;
+  }
+  return clean.slice(0, 3);
+};
+
 export const stampDate = (dateStr, fixedMonth, fixedFy) => {
   if (fixedMonth && fixedFy) {
-    const mi = MN.indexOf(fixedMonth.slice(0, 3));
+    const normKey = normalizeMonth(fixedMonth);
+    const mi = MN.findIndex(x => x.toLowerCase() === normKey);
+    const validMi = mi !== -1 ? mi : 7;
+    const qCode = qOf(validMi);
     return {
       fy: fixedFy,
-      q: qOf(mi),
-      m: fixedMonth
+      q: `${qCode} (${QM_LABEL[qCode] || ''})`,
+      m: MN[validMi]
     };
   }
-  const parts = dateStr.split('-').map(Number);
-  const y = parts[0];
-  const mi = parts[1] - 1;
+  const parts = String(dateStr || '').split('-').map(Number);
+  const y = parts[0] || 2026;
+  const mi = (parts[1] && !isNaN(parts[1])) ? parts[1] - 1 : 7;
+  const qCode = qOf(mi);
   return {
     fy: fyOf(y, mi),
-    q: qOf(mi),
-    m: MN[mi] + ' ' + y
+    q: `${qCode} (${QM_LABEL[qCode] || ''})`,
+    m: MN[mi]
   };
 };
 
@@ -32,10 +59,9 @@ export const getInvoices = (req, res) => {
     const { fy, q, m } = req.query;
     let list = db.invoices || [];
 
-    const normalizeFy = (str) => String(str || '').replace(/^FY\s*/i, '').replace(/–/g, '-').trim();
-    if (fy) list = list.filter(r => normalizeFy(r.fy) === normalizeFy(fy));
-    if (q) list = list.filter(r => r.q === q);
-    if (m) list = list.filter(r => r.m === m);
+    if (fy && fy !== 'ALL') list = list.filter(r => normalizeFy(r.fy) === normalizeFy(fy));
+    if (q && q !== 'ALL') list = list.filter(r => r.q === q);
+    if (m && m !== 'ALL') list = list.filter(r => normalizeMonth(r.m) === normalizeMonth(m));
 
     // Sort by date ascending, then invoice number
     list.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.n.localeCompare(b.n)));
@@ -50,14 +76,14 @@ export const getInvoices = (req, res) => {
   }
 };
 
-export const createInvoice = (req, res) => {
+export const createInvoice = async (req, res) => {
   try {
     const db = getDb();
     if (db.locked) {
       return res.status(403).json({ success: false, message: 'Sheet is locked. Unlock to make changes.' });
     }
 
-    const { d, p, n, g = '', t, i, c, s, fixedMonth, fixedFy } = req.body;
+    const { d, p, n, g = '', t, i, c, s, fixedMonth, fixedFy, m: bodyM, q: bodyQ, fy: bodyFy } = req.body;
 
     if (!d) return res.status(400).json({ success: false, message: 'Enter the invoice date.' });
     if (!n) return res.status(400).json({ success: false, message: 'Enter the invoice number.' });
@@ -77,10 +103,20 @@ export const createInvoice = (req, res) => {
       return res.status(400).json({ success: false, message: 'An invoice cannot have IGST together with CGST/SGST.' });
     }
 
-    const st = stampDate(d, fixedMonth, fixedFy);
+    const cleanMonth = (bodyM || fixedMonth)
+      ? (MN[MN.findIndex(x => x.toLowerCase() === normalizeMonth(bodyM || fixedMonth))] || bodyM || fixedMonth)
+      : null;
+
+    const st = (bodyFy && cleanMonth)
+      ? {
+          fy: bodyFy,
+          q: bodyQ || stampDate(d).q,
+          m: cleanMonth
+        }
+      : stampDate(d, fixedMonth, fixedFy);
 
     // Check duplicate invoice number in same financial year
-    const exists = db.invoices.some(x => x.fy === st.fy && x.n.toLowerCase() === n.trim().toLowerCase());
+    const exists = db.invoices.some(x => normalizeFy(x.fy) === normalizeFy(st.fy) && x.n.toLowerCase() === n.trim().toLowerCase());
     if (exists) {
       return res.status(400).json({ success: false, message: `Invoice No "${n}" already exists in ${st.fy}.` });
     }
@@ -98,8 +134,22 @@ export const createInvoice = (req, res) => {
       i: iNum,
       c: cNum,
       s: sNum,
+      sheetSynced: false,
       createdAt: new Date().toISOString()
     };
+
+    // Attempt Google Sheets Sync
+    let sheetWarning = null;
+    try {
+      const sheetRes = await googleSheets.upsertRows([newRecord]);
+      if (sheetRes.ok) {
+        newRecord.sheetSynced = true;
+      } else if (!sheetRes.skipped) {
+        sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
+      }
+    } catch (_) {
+      sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
+    }
 
     db.invoices.push(newRecord);
     saveDb(db);
@@ -107,6 +157,8 @@ export const createInvoice = (req, res) => {
     res.status(201).json({
       success: true,
       data: newRecord,
+      sheetSynced: newRecord.sheetSynced,
+      sheetWarning,
       warning: (cNum !== sNum && (cNum > 0 || sNum > 0)) ? 'Note: CGST and SGST amounts are different.' : null
     });
   } catch (error) {
@@ -114,7 +166,7 @@ export const createInvoice = (req, res) => {
   }
 };
 
-export const updateInvoice = (req, res) => {
+export const updateInvoice = async (req, res) => {
   try {
     const db = getDb();
     if (db.locked) {
@@ -122,7 +174,7 @@ export const updateInvoice = (req, res) => {
     }
 
     const { id } = req.params;
-    const { d, p, n, g = '', t, i, c, s, fixedMonth, fixedFy } = req.body;
+    const { d, p, n, g = '', t, i, c, s, fixedMonth, fixedFy, m: bodyM, q: bodyQ, fy: bodyFy } = req.body;
 
     const index = db.invoices.findIndex(x => x.id === id);
     if (index === -1) {
@@ -147,10 +199,20 @@ export const updateInvoice = (req, res) => {
       return res.status(400).json({ success: false, message: 'An invoice cannot have IGST together with CGST/SGST.' });
     }
 
-    const st = stampDate(d, fixedMonth, fixedFy);
+    const cleanMonth = (bodyM || fixedMonth)
+      ? (MN[MN.findIndex(x => x.toLowerCase() === normalizeMonth(bodyM || fixedMonth))] || bodyM || fixedMonth)
+      : null;
+
+    const st = (bodyFy && cleanMonth)
+      ? {
+          fy: bodyFy,
+          q: bodyQ || db.invoices[index].q,
+          m: cleanMonth
+        }
+      : stampDate(d, fixedMonth, fixedFy);
 
     // Check duplicate invoice number in same financial year excluding current
-    const exists = db.invoices.some(x => x.id !== id && x.fy === st.fy && x.n.toLowerCase() === n.trim().toLowerCase());
+    const exists = db.invoices.some(x => x.id !== id && normalizeFy(x.fy) === normalizeFy(st.fy) && x.n.toLowerCase() === n.trim().toLowerCase());
     if (exists) {
       return res.status(400).json({ success: false, message: `Invoice No "${n}" already exists in ${st.fy}.` });
     }
@@ -168,8 +230,22 @@ export const updateInvoice = (req, res) => {
       i: iNum,
       c: cNum,
       s: sNum,
+      sheetSynced: false,
       updatedAt: new Date().toISOString()
     };
+
+    // Attempt Google Sheets Sync
+    let sheetWarning = null;
+    try {
+      const sheetRes = await googleSheets.upsertRows([updated]);
+      if (sheetRes.ok) {
+        updated.sheetSynced = true;
+      } else if (!sheetRes.skipped) {
+        sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
+      }
+    } catch (_) {
+      sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
+    }
 
     db.invoices[index] = updated;
     saveDb(db);
@@ -177,6 +253,8 @@ export const updateInvoice = (req, res) => {
     res.json({
       success: true,
       data: updated,
+      sheetSynced: updated.sheetSynced,
+      sheetWarning,
       warning: (cNum !== sNum && (cNum > 0 || sNum > 0)) ? 'Note: CGST and SGST amounts are different.' : null
     });
   } catch (error) {
@@ -184,7 +262,7 @@ export const updateInvoice = (req, res) => {
   }
 };
 
-export const deleteInvoice = (req, res) => {
+export const deleteInvoice = async (req, res) => {
   try {
     const db = getDb();
     if (db.locked) {
@@ -199,14 +277,25 @@ export const deleteInvoice = (req, res) => {
       return res.status(404).json({ success: false, message: 'Invoice not found.' });
     }
 
+    // Attempt Google Sheets Delete
+    let sheetWarning = null;
+    try {
+      const sheetRes = await googleSheets.deleteRows([id]);
+      if (!sheetRes.ok && !sheetRes.skipped) {
+        sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
+      }
+    } catch (_) {
+      sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
+    }
+
     saveDb(db);
-    res.json({ success: true, message: 'Invoice deleted successfully.' });
+    res.json({ success: true, message: 'Invoice deleted successfully.', sheetWarning });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-export const clearInvoices = (req, res) => {
+export const clearInvoices = async (req, res) => {
   try {
     const db = getDb();
     if (db.locked) {
@@ -216,12 +305,27 @@ export const clearInvoices = (req, res) => {
     const { fy, q, m } = req.query;
     const initialCount = db.invoices.length;
 
+    const hasFy = fy && fy !== 'ALL';
+    const hasMonth = m && m !== 'ALL';
+
+    const toDeleteIds = [];
     db.invoices = db.invoices.filter(r => {
-      if (fy && r.fy !== fy) return true;
-      if (q && r.q !== q) return true;
-      if (m && r.m !== m) return true;
-      return false;
+      const fyMatch = !hasFy || normalizeFy(r.fy) === normalizeFy(fy);
+      const qMatch = !q || q === 'ALL' || r.q === q;
+      const monthMatch = !hasMonth || normalizeMonth(r.m) === normalizeMonth(m);
+
+      if (fyMatch && qMatch && monthMatch) {
+        toDeleteIds.push(r.id);
+        return false;
+      }
+      return true;
     });
+
+    if (toDeleteIds.length > 0) {
+      try {
+        await googleSheets.deleteRows(toDeleteIds);
+      } catch (_) {}
+    }
 
     const deletedCount = initialCount - db.invoices.length;
     saveDb(db);
@@ -232,7 +336,7 @@ export const clearInvoices = (req, res) => {
   }
 };
 
-export const bulkImport = (req, res) => {
+export const bulkImport = async (req, res) => {
   try {
     const db = getDb();
     if (db.locked) {
@@ -246,9 +350,10 @@ export const bulkImport = (req, res) => {
 
     let ok = 0;
     let bad = 0;
+    const newRecords = [];
 
     for (const item of items) {
-      const { d, p, n, g = '', t = 0, i = 0, c = 0, s = 0 } = item;
+      const { d, p, n, g = '', t = 0, i = 0, c = 0, s = 0, id: existingId, fy: itemFy, q: itemQ, m: itemM } = item;
       if (!d || !n || !p) {
         bad++;
         continue;
@@ -264,15 +369,22 @@ export const bulkImport = (req, res) => {
         continue;
       }
 
-      const st = stampDate(d, fixedMonth, fixedFy);
-      const exists = db.invoices.some(x => x.fy === st.fy && x.n.toLowerCase() === String(n).trim().toLowerCase());
+      const cleanMonth = (itemM || fixedMonth)
+        ? (MN[MN.findIndex(x => x.toLowerCase() === normalizeMonth(itemM || fixedMonth))] || itemM || fixedMonth)
+        : null;
+
+      const st = (itemFy && cleanMonth)
+        ? { fy: itemFy, q: itemQ || '', m: cleanMonth }
+        : stampDate(d, fixedMonth, fixedFy);
+
+      const exists = db.invoices.some(x => normalizeFy(x.fy) === normalizeFy(st.fy) && x.n.toLowerCase() === String(n).trim().toLowerCase());
       if (exists) {
         bad++;
         continue;
       }
 
-      db.invoices.push({
-        id: 'inv-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      const rec = {
+        id: existingId || ('inv-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
         fy: st.fy,
         q: st.q,
         m: st.m,
@@ -284,13 +396,40 @@ export const bulkImport = (req, res) => {
         i: iNum,
         c: cNum,
         s: sNum,
+        sheetSynced: false,
         createdAt: new Date().toISOString()
-      });
+      };
+
+      newRecords.push(rec);
       ok++;
     }
 
-    saveDb(db);
-    res.json({ success: true, imported: ok, skipped: bad });
+    // Attempt Google Sheets Batch Upsert (chunked in 200s inside service)
+    let sheetWarning = null;
+    let sheetSynced = false;
+    if (newRecords.length > 0) {
+      try {
+        const sheetRes = await googleSheets.upsertRows(newRecords);
+        if (sheetRes.ok) {
+          sheetSynced = true;
+          newRecords.forEach(r => { r.sheetSynced = true; });
+        } else if (!sheetRes.skipped) {
+          sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
+        }
+      } catch (_) {
+        sheetWarning = 'Data save ho gaya, par Google Sheet sync fail hua.';
+      }
+      db.invoices.push(...newRecords);
+      saveDb(db);
+    }
+
+    res.json({
+      success: true,
+      imported: ok,
+      skipped: bad,
+      sheetSynced,
+      sheetWarning
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -301,10 +440,88 @@ export const getLockStatus = (req, res) => {
   res.json({ success: true, locked: !!db.locked });
 };
 
-export const toggleLock = (req, res) => {
-  const db = getDb();
-  const { locked } = req.body;
-  db.locked = typeof locked === 'boolean' ? locked : !db.locked;
-  saveDb(db);
-  res.json({ success: true, locked: db.locked, message: db.locked ? 'Sheet locked' : 'Sheet unlocked' });
+export const toggleLock = async (req, res) => {
+  try {
+    const db = getDb();
+    const { locked } = req.body;
+    const newLock = typeof locked === 'boolean' ? locked : !db.locked;
+    db.locked = newLock;
+    saveDb(db);
+
+    let sheetWarning = null;
+    try {
+      const invoiceIds = (db.invoices || []).map(x => x.id);
+      const sheetRes = newLock
+        ? await googleSheets.lockSheet(invoiceIds)
+        : await googleSheets.unlockSheet(invoiceIds);
+
+      if (!sheetRes.ok && !sheetRes.skipped) {
+        sheetWarning = newLock
+          ? 'App me lock ho gaya, Sheet protection fail hui.'
+          : 'App me unlock ho gaya, Sheet unlock fail hui.';
+      }
+    } catch (_) {
+      sheetWarning = newLock
+        ? 'App me lock ho gaya, Sheet protection fail hui.'
+        : 'App me unlock ho gaya, Sheet unlock fail hui.';
+    }
+
+    res.json({
+      success: true,
+      locked: db.locked,
+      sheetWarning,
+      message: db.locked ? 'Sheet locked' : 'Sheet unlocked'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const syncToGoogleSheets = async (req, res) => {
+  try {
+    const db = getDb();
+    const { forceAll } = req.body || {};
+    let targetInvoices = (db.invoices || []).filter(r => !r.sheetSynced);
+
+    if (forceAll || targetInvoices.length === 0) {
+      // If forceAll requested or all are already marked synced, push all invoices so empty sheets get populated
+      targetInvoices = db.invoices || [];
+    }
+
+    if (targetInvoices.length === 0) {
+      return res.json({
+        success: true,
+        count: 0,
+        message: 'No invoices found in database to sync.'
+      });
+    }
+
+    const result = await googleSheets.upsertRows(targetInvoices);
+    if (result.skipped) {
+      return res.json({
+        success: false,
+        skipped: true,
+        message: 'Google Sheets sync is not configured (APPS_SCRIPT_URL/SECRET missing in .env).'
+      });
+    }
+
+    if (result.ok) {
+      db.invoices.forEach(r => {
+        r.sheetSynced = true;
+      });
+      saveDb(db);
+      return res.json({
+        success: true,
+        count: targetInvoices.length,
+        message: `${targetInvoices.length} invoices synced to Google Sheet successfully.`
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: 'Data save ho gaya, par Google Sheet sync fail hua: ' + (result.error || 'Unknown error')
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
 };

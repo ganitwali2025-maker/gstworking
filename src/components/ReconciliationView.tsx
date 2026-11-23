@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { fmtVal, inr } from '../utils/gstFormat';
+import { MonthlyStats } from '../types/gst';
 
 export interface RecoRecord {
   id: string;
@@ -280,12 +281,12 @@ interface ReconciliationViewProps {
   showToast?: (msg: string) => void;
   fy?: string;
   month?: string;
-  monthlyData?: any;
+  monthlyData?: Record<string, MonthlyStats>;
 }
 
 export default function ReconciliationView({
   showToast = () => {},
-  fy = '2026-27'
+  fy: _fy = '2026-27'
 }: ReconciliationViewProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('books-reco');
   const [searchQuery, setSearchQuery] = useState('');
@@ -558,7 +559,6 @@ export default function ReconciliationView({
                 const isNoMatch = r.status === 'Invoice No. Not Match';
                 const isMatched = r.status === 'Matched';
                 const isNotInBook = r.status === 'Not in Book';
-                const isDebitNote = r.status === 'Debit Note';
 
                 return (
                   <tr key={r.id}>
@@ -748,7 +748,7 @@ export default function ReconciliationView({
 
                 handleSaveEdit({
                   ...selectedRecord,
-                  status: (fd.get('status') as any) || selectedRecord.status,
+                  status: (fd.get('status') as RecoRecord['status']) || selectedRecord.status,
                   invNo: (fd.get('invNo') as string) || selectedRecord.invNo,
                   date: (fd.get('date') as string) || selectedRecord.date,
                   gstin: (fd.get('gstin') as string) || selectedRecord.gstin,

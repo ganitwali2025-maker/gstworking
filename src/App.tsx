@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGstStore } from './hooks/useGstStore';
+import { initAutoSyncRetryListener } from './services/registerService';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import RegisterPeriodBar from './components/RegisterPeriodBar';
@@ -19,12 +20,9 @@ export default function App() {
     setView,
     fy,
     setFy,
-    quarter,
-    setQuarter,
     month,
     setMonth,
     monthlyData,
-    rcmList,
     invoices,
     isLocked,
     selectedInvoiceId,
@@ -44,15 +42,16 @@ export default function App() {
     saveSettings,
     refreshInvoices,
     undoInvoices,
-    redoInvoices
+    redoInvoices,
+    batchImportInvoices
   } = useGstStore();
-
-  const monthsList = Object.keys(monthlyData);
-  const completedSteps = steps.filter((s) => s.done).length;
-  const progressPercent = Math.round((completedSteps / (steps.length || 5)) * 100);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const toggleSidebarCollapse = () => setIsSidebarCollapsed((prev) => !prev);
+
+  useEffect(() => {
+    initAutoSyncRetryListener();
+  }, []);
 
   return (
     <div className={`app ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -71,6 +70,7 @@ export default function App() {
           onLogout={() => setIsLoggedOut(true)}
           onToggleSidebar={toggleSidebarCollapse}
           isSidebarCollapsed={isSidebarCollapsed}
+          showToast={showToast}
         />
 
         <div className="scroll">
@@ -112,10 +112,14 @@ export default function App() {
               onRefresh={refreshInvoices}
               onUndo={undoInvoices}
               onRedo={redoInvoices}
+              onBatchImport={batchImportInvoices}
               showToast={showToast}
               selectedInvoiceId={selectedInvoiceId}
               setSelectedInvoiceId={setSelectedInvoiceId}
               fy={fy}
+              setFy={setFy}
+              month={month}
+              setMonth={setMonth}
             />
           )}
 

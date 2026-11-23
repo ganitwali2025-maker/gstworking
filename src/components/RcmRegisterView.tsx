@@ -1,6 +1,20 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { fm, fmtVal, dmySlash, inr, pp, iso } from '../utils/gstFormat';
+import { updateQueryParams } from '../utils/router';
+import RcmImportModal from './RcmImportModal';
+import { syncModuleToSheets } from '../services/sheetSync';
+import {
+  REGISTER_TABS,
+  RCM_SHEET_HEADERS,
+  filterRegisterRows,
+  loadRegisterRows,
+  saveRegisterRow,
+  bulkImportRegisterRows,
+  deleteRegisterRow,
+  clearRegisterRows,
+  mapRowToSheetRow
+} from '../services/registerService';
 
 export interface RcmRecord {
   id: string;
@@ -8,12 +22,18 @@ export interface RcmRecord {
   q: string;
   fy: string;
   d: string; // Entry Date
-  transporter: string; // Transporter Name
-  lrNo: string; // Transporter L.R. No.
-  amount: number; // Amount
-  igst: number; // IGST 5%
-  cgst: number; // CGST 2.5%
-  sgst: number; // SGST 2.5%
+  transporter: string; // Transporter / Supplier Name
+  lrNo: string; // Transporter L.R. No. / Invoice No
+  amount: number; // Taxable Amount (paise)
+  igst: number; // IGST (paise)
+  cgst: number; // CGST (paise)
+  sgst: number; // SGST (paise)
+  cess?: number; // CESS (paise)
+  invVal?: number; // Invoice Value (paise)
+  gstNo?: string;
+  category?: string;
+  rate?: number;
+  sheetSynced?: boolean;
 }
 
 const SEED_RCM_ROWS: RcmRecord[] = [
@@ -21,7 +41,7 @@ const SEED_RCM_ROWS: RcmRecord[] = [
     id: 'rcm-1',
     m: 'Aug',
     q: 'Q2 (Jul-Sep)',
-    fy: '2026-27',
+    fy: 'FY 2026–27',
     d: '2026-08-03',
     transporter: 'VRL Logistics Limited',
     lrNo: 'LR-78901',
@@ -34,7 +54,7 @@ const SEED_RCM_ROWS: RcmRecord[] = [
     id: 'rcm-2',
     m: 'Aug',
     q: 'Q2 (Jul-Sep)',
-    fy: '2026-27',
+    fy: 'FY 2026–27',
     d: '2026-08-07',
     transporter: 'Gati KWE Express Surface',
     lrNo: 'LR-44219',
@@ -47,7 +67,7 @@ const SEED_RCM_ROWS: RcmRecord[] = [
     id: 'rcm-3',
     m: 'Aug',
     q: 'Q2 (Jul-Sep)',
-    fy: '2026-27',
+    fy: 'FY 2026–27',
     d: '2026-08-12',
     transporter: 'SafeXpress Surface Logistics',
     lrNo: 'LR-66102',
@@ -60,7 +80,7 @@ const SEED_RCM_ROWS: RcmRecord[] = [
     id: 'rcm-4',
     m: 'Aug',
     q: 'Q2 (Jul-Sep)',
-    fy: '2026-27',
+    fy: 'FY 2026–27',
     d: '2026-08-18',
     transporter: 'TCI Freight Logistics',
     lrNo: 'LR-99341',
@@ -88,16 +108,160 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
   const [isLocked, setIsLocked] = useState(false);
   const [editingRecord, setEditingRecord] = useState<RcmRecord | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [pastRecords, setPastRecords] = useState<RcmRecord[][]>([]);
   const [futureRecords, setFutureRecords] = useState<RcmRecord[][]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Month & FY options
+  const existingFys = Array.from(new Set(records.map((r) => r.fy).filter(Boolean)));
+  const allFyOptions = Array.from(new Set(['FY 2026–27', 'FY 2025–26', ...existingFys]));
+
+  const MONTH_OPTIONS = [
+    { value: 'ALL', label: 'All Months' },
+    { value: 'Apr', label: 'April' },
+    { value: 'May', label: 'May' },
+    { value: 'Jun', label: 'June' },
+    { value: 'Jul', label: 'July' },
+    { value: 'Aug', label: 'August' },
+    { value: 'Sep', label: 'September' },
+    { value: 'Oct', label: 'October' },
+    { value: 'Nov', label: 'November' },
+    { value: 'Dec', label: 'December' },
+    { value: 'Jan', label: 'January' },
+    { value: 'Feb', label: 'February' },
+    { value: 'Mar', label: 'March' }
+  ];
+
+  const normalizeFy = (str?: string): string => {
+    if (!str) return '';
+    const digits = str.replace(/[^0-9]/g, '');
+    if (digits) return digits;
+    return str.replace(/[\s–-]/g, '').toLowerCase().trim();
+  };
+
+  const normalizeMonth = (str?: string): string => {
+    const clean = String(str || '').trim().toLowerCase();
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    for (const mon of months) {
+      if (clean.startsWith(mon) || clean.includes(mon)) return mon;
+    }
+    return clean.slice(0, 3);
+  };
+
+  // State: selectedFy & selectedMonth with URL / storage persistence
+  const [selectedFy, setSelectedFy] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('fy')?.trim();
+      if (q) {
+        if (q.toUpperCase() === 'ALL') return 'ALL';
+        const matched = allFyOptions.find(
+          (opt) => normalizeFy(opt) === normalizeFy(q) || opt.toLowerCase() === q.toLowerCase()
+        );
+        if (matched) return matched;
+      }
+      const saved = localStorage.getItem('rcm_selected_fy')?.trim();
+      if (saved) {
+        if (saved.toUpperCase() === 'ALL') return 'ALL';
+        const matched = allFyOptions.find(
+          (opt) => normalizeFy(opt) === normalizeFy(saved) || opt.toLowerCase() === saved.toLowerCase()
+        );
+        if (matched) return matched;
+      }
+    }
+    return 'ALL';
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('month')?.trim();
+      if (q) {
+        if (q.toUpperCase() === 'ALL') return 'ALL';
+        const matched = MONTH_OPTIONS.find(
+          (m) => m.value.toLowerCase() === q.toLowerCase() || m.label.toLowerCase() === q.toLowerCase()
+        );
+        if (matched) return matched.value;
+      }
+      const saved = localStorage.getItem('rcm_selected_month')?.trim();
+      if (saved) {
+        if (saved.toUpperCase() === 'ALL') return 'ALL';
+        const matched = MONTH_OPTIONS.find(
+          (m) => m.value.toLowerCase() === saved.toLowerCase() || m.label.toLowerCase() === saved.toLowerCase()
+        );
+        if (matched) return matched.value;
+      }
+    }
+    return 'ALL';
+  });
+
+  // Sync selectedFy & selectedMonth with back/forward popstate
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const qFy = params.get('fy')?.trim();
+      const qMonth = params.get('month')?.trim();
+      if (qFy) {
+        if (qFy.toUpperCase() === 'ALL') setSelectedFy('ALL');
+        else {
+          const matched = allFyOptions.find((opt) => normalizeFy(opt) === normalizeFy(qFy));
+          if (matched) setSelectedFy(matched);
+        }
+      }
+      if (qMonth) {
+        if (qMonth.toUpperCase() === 'ALL') setSelectedMonth('ALL');
+        else {
+          const matched = MONTH_OPTIONS.find((m) => m.value.toLowerCase() === qMonth.toLowerCase());
+          if (matched) setSelectedMonth(matched.value);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [allFyOptions]);
+
+  // Step 5: Load data for RCM tab on initial mount
+  useEffect(() => {
+    loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM, SEED_RCM_ROWS).then((res) => {
+      if (res.rows && res.rows.length > 0) {
+        setRecords(res.rows);
+      }
+    });
+
+    const handleSynced = (e: any) => {
+      if (e.detail?.tab === REGISTER_TABS.RCM) {
+        try {
+          const saved = localStorage.getItem('rcm_register_v1');
+          if (saved) setRecords(JSON.parse(saved));
+        } catch {}
+      }
+    };
+    window.addEventListener('register-synced', handleSynced);
+    return () => window.removeEventListener('register-synced', handleSynced);
+  }, []);
+
+  const handleRefresh = async () => {
+    try {
+      const res = await loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM, records);
+      if (res.rows) {
+        setRecords(res.rows);
+      }
+      notify('RCM tab data reloaded successfully');
+    } catch {
+      notify('RCM refreshed');
+    }
+  };
+
+  // Step 4: Filter records strictly by selected FY and Month (NEVER by invoice date!)
+  const displayRecords = useMemo(() => {
+    return filterRegisterRows(records, selectedFy, selectedMonth);
+  }, [records, selectedFy, selectedMonth]);
 
   const pushHistory = (prev: RcmRecord[]) => {
     setPastRecords((p) => [...p.slice(-25), prev]);
     setFutureRecords([]);
   };
 
-  const handleUndo = () => {
+  const _handleUndo = () => {
     if (pastRecords.length === 0) {
       notify('No more actions to undo');
       return;
@@ -110,7 +274,7 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
     notify('Undo successful');
   };
 
-  const handleRedo = () => {
+  const _handleRedo = () => {
     if (futureRecords.length === 0) {
       notify('No more actions to redo');
       return;
@@ -123,11 +287,11 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
     notify('Redo successful');
   };
 
-  // Totals for top KPI cards
-  const totalAmount = records.reduce((acc, r) => acc + (r.amount || 0), 0);
-  const totalIgst = records.reduce((acc, r) => acc + (r.igst || 0), 0);
-  const totalCgst = records.reduce((acc, r) => acc + (r.cgst || 0), 0);
-  const totalSgst = records.reduce((acc, r) => acc + (r.sgst || 0), 0);
+  // Totals for top KPI cards based on filtered records
+  const totalAmount = displayRecords.reduce((acc, r) => acc + (r.amount || 0), 0);
+  const totalIgst = displayRecords.reduce((acc, r) => acc + (r.igst || 0), 0);
+  const totalCgst = displayRecords.reduce((acc, r) => acc + (r.cgst || 0), 0);
+  const totalSgst = displayRecords.reduce((acc, r) => acc + (r.sgst || 0), 0);
   const totalTax = totalIgst + totalCgst + totalSgst;
 
   const notify = (msg: string) => {
@@ -143,6 +307,60 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
     } catch {}
   };
 
+  const handleBatchImport = async (
+    newRecords: RcmRecord[],
+    replaceMonth?: string,
+    replaceFy?: string,
+    counts?: { imported: number; duplicate: number; invalid: number }
+  ) => {
+    let remaining = records;
+    let replacedIds: string[] = [];
+
+    if (replaceMonth && replaceFy) {
+      const toReplace = records.filter(
+        (r) =>
+          normalizeMonth(r.m) === normalizeMonth(replaceMonth) &&
+          normalizeFy(r.fy) === normalizeFy(replaceFy)
+      );
+      replacedIds = toReplace.map((r) => r.id);
+      remaining = records.filter((r) => !replacedIds.includes(r.id));
+    }
+
+    const updatedRecords = [...newRecords, ...remaining];
+    persistRecords(updatedRecords);
+
+    // Sync to Google Sheet RCM tab & backend
+    bulkImportRegisterRows(REGISTER_TABS.RCM, newRecords, replaceMonth, replaceFy).then((res) => {
+      if (res.sheetSynced) {
+        setRecords((prev) =>
+          prev.map((r) => (newRecords.some((nr) => nr.id === r.id) ? { ...r, sheetSynced: true } : r))
+        );
+      }
+    });
+
+    if (replaceFy) {
+      setSelectedFy(replaceFy);
+      try { localStorage.setItem('rcm_selected_fy', replaceFy); } catch {}
+      updateQueryParams({ fy: replaceFy });
+    }
+    if (replaceMonth) {
+      setSelectedMonth(replaceMonth);
+      try { localStorage.setItem('rcm_selected_month', replaceMonth); } catch {}
+      updateQueryParams({ month: replaceMonth });
+    }
+
+    if (counts) {
+      const msg = `Imported ${counts.imported} RCM records successfully${
+        counts.duplicate ? ` (${counts.duplicate} duplicates skipped)` : ''
+      }${counts.invalid ? ` (${counts.invalid} invalid rows skipped)` : ''}`;
+      notify(msg);
+    } else {
+      notify(`Imported ${newRecords.length} RCM records.`);
+    }
+
+    setImportModalOpen(false);
+  };
+
   const handleOpenEdit = (rec: RcmRecord) => {
     if (isLocked) {
       notify('Sheet is locked. Unlock to make changes.');
@@ -153,7 +371,12 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
   };
 
   const handleSaveRecord = (updated: RcmRecord) => {
-    persistRecords(records.map((r) => (r.id === updated.id ? updated : r)));
+    const exists = records.some((r) => r.id === updated.id);
+    const newRecords = exists
+      ? records.map((r) => (r.id === updated.id ? updated : r))
+      : [updated, ...records];
+    persistRecords(newRecords);
+    saveRegisterRow(REGISTER_TABS.RCM, updated);
     setModalOpen(false);
     notify('Record updated successfully');
   };
@@ -164,7 +387,9 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
       return;
     }
     if (window.confirm('Clear all RCM register records?')) {
+      const toDeleteIds = records.map((r) => r.id);
       persistRecords([]);
+      clearRegisterRows(REGISTER_TABS.RCM, toDeleteIds, selectedFy, selectedMonth);
       notify('RCM data cleared');
     }
   };
@@ -175,6 +400,7 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
       return;
     }
     persistRecords(records.filter((r) => r.id !== id));
+    deleteRegisterRow(REGISTER_TABS.RCM, id);
     notify('Record deleted');
   };
 
@@ -187,7 +413,7 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array' });
       const firstSheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<any>(firstSheet, { defval: '' });
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
 
       const imported: RcmRecord[] = [];
       for (const row of rows) {
@@ -222,8 +448,41 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
       } else {
         notify('No valid rows found to import.');
       }
-    } catch (err: any) {
-      notify('Import error: ' + err.message);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Import failed';
+      notify('Import error: ' + errMsg);
+    }
+  };
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const handleSyncToSheets = async () => {
+    if (isSyncing) return;
+    const targetRows = records;
+    if (targetRows.length === 0) {
+      notify('No records to sync');
+      return;
+    }
+    setIsSyncing(true);
+    notify(`Syncing ${targetRows.length} records to Google Sheet...`);
+    try {
+      const rows = targetRows.map((r) => mapRowToSheetRow(r, REGISTER_TABS.RCM));
+      const res = await syncModuleToSheets({
+        action: 'upsert',
+        sheet: REGISTER_TABS.RCM,
+        headers: RCM_SHEET_HEADERS,
+        rows
+      });
+      if (res.success) {
+        persistRecords(records.map((r) => ({ ...r, sheetSynced: true })));
+        notify(`Google Sheet me ${res.count || targetRows.length} records sync ho gaye! ✓`);
+      } else {
+        notify('Google Sheet sync fail hua: ' + (res.error || 'Unknown error'));
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Sync error';
+      notify('Sync error: ' + msg);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -354,12 +613,68 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
               </svg>
             </div>
             <div>
-              <h2 className="gstr1-title">Reverse Charge Mechanism (RCM) Register</h2>
+              <h2 className="gstr1-title">(RCM) Register</h2>
+              <div className="gstr1-subtitle">
+                Showing {displayRecords.length} of {records.length} invoices
+              </div>
             </div>
           </div>
 
           {/* Action Buttons */}
           <div className="gstr1-btn-group">
+            {/* 1. FY Select */}
+            <label className="gstr1-select-wrapper" title="Select Financial Year">
+              <div className="gstr1-select-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <span className="gstr1-select-label">FY:</span>
+              <select
+                className="gstr1-select-field"
+                value={selectedFy}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedFy(val);
+                  try { localStorage.setItem('rcm_selected_fy', val); } catch { }
+                  updateQueryParams({ fy: val });
+                }}
+              >
+                <option value="ALL">All FY</option>
+                {allFyOptions.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </label>
+
+            {/* 2. Month Select */}
+            <label className="gstr1-select-wrapper" title="Select Month">
+              <div className="gstr1-select-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+              <span className="gstr1-select-label">Month:</span>
+              <select
+                className="gstr1-select-field"
+                value={selectedMonth}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedMonth(val);
+                  try { localStorage.setItem('rcm_selected_month', val); } catch { }
+                  updateQueryParams({ month: val });
+                }}
+              >
+                {MONTH_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </label>
+
             <button
               type="button"
               className="btn-gstr1 btn-lock"
@@ -400,7 +715,7 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
             <button
               type="button"
               className="btn-gstr1 btn-refresh"
-              onClick={() => notify('Register refreshed')}
+              onClick={handleRefresh}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
@@ -412,7 +727,7 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
               type="button"
               className="btn-gstr1 btn-import"
               disabled={isLocked}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setImportModalOpen(true)}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -429,38 +744,64 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
           <table className="gstr1-table">
             <thead>
               <tr>
-                <th style={{ textAlign: 'center' }}>MONTH</th>
+                <th style={{ textAlign: 'center' }}>FINANCIAL YEAR</th>
                 <th style={{ textAlign: 'center' }}>QUARTER</th>
-                <th style={{ textAlign: 'center' }}>ENTRY DATE</th>
-                <th className="col-party" style={{ minWidth: '220px', textAlign: 'left' }}>TRANSPORTER NAME</th>
-                <th className="col-inv" style={{ textAlign: 'left' }}>TRANSPORTER L.R. NO.</th>
-                <th style={{ textAlign: 'center' }}>AMOUNT</th>
-                <th style={{ textAlign: 'center' }}>IGST 5%</th>
-                <th style={{ textAlign: 'center' }}>CGST 2.5%</th>
-                <th style={{ textAlign: 'center' }}>SGST 2.5%</th>
+                <th style={{ textAlign: 'center' }}>MONTH</th>
+                <th style={{ textAlign: 'center' }}>INVOICE DATE</th>
+                <th className="col-party" style={{ minWidth: '220px', textAlign: 'left' }}>SUPPLIER / PARTY NAME</th>
+                <th style={{ textAlign: 'center' }}>GST NO</th>
+                <th className="col-inv" style={{ textAlign: 'left' }}>INVOICE NO / L.R. NO</th>
+                <th style={{ textAlign: 'center' }}>INVOICE VALUE</th>
+                <th style={{ textAlign: 'center' }}>TAXABLE VALUE</th>
+                <th style={{ textAlign: 'center' }}>IGST</th>
+                <th style={{ textAlign: 'center' }}>CGST</th>
+                <th style={{ textAlign: 'center' }}>SGST</th>
+                <th style={{ textAlign: 'center' }}>CESS</th>
                 <th style={{ textAlign: 'center' }}>TOTAL TAX</th>
+                <th style={{ textAlign: 'center' }}>RCM CATEGORY</th>
                 <th style={{ textAlign: 'center' }}>ACTION</th>
               </tr>
             </thead>
             <tbody>
-              {records.length > 0 ? (
-                records.map((r) => {
-                  const totalTax = (r.igst || 0) + (r.cgst || 0) + (r.sgst || 0);
+              {displayRecords.length > 0 ? (
+                displayRecords.map((r) => {
+                  const cessVal = r.cess || 0;
+                  const totalTax = (r.igst || 0) + (r.cgst || 0) + (r.sgst || 0) + cessVal;
+                  const invVal = r.invVal || ((r.amount || 0) + totalTax);
 
                   return (
                     <tr key={r.id}>
-                      <td style={{ textAlign: 'center' }}>{r.m}</td>
-                      <td style={{ textAlign: 'center' }}>{r.q}</td>
+                      <td style={{ textAlign: 'center' }}>{r.fy || '—'}</td>
+                      <td style={{ textAlign: 'center' }}>{r.q || '—'}</td>
+                      <td style={{ textAlign: 'center' }}>{r.m || '—'}</td>
                       <td style={{ textAlign: 'center' }}>{dmySlash(r.d)}</td>
                       <td className="party-name" style={{ textAlign: 'left' }} title={r.transporter}>
-                        {r.transporter}
+                        {(() => {
+                          const val = (r.transporter || '').trim();
+                          const isGst = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i.test(val);
+                          if (isGst || (val && val.toUpperCase() === (r.gstNo || '').trim().toUpperCase())) {
+                            return '—';
+                          }
+                          return val || '—';
+                        })()}
                       </td>
-                      <td className="inv-no" style={{ textAlign: 'left' }}>{r.lrNo || '—'}</td>
+                      <td className="gst-no" style={{ textAlign: 'center' }}>{r.gstNo || '—'}</td>
+                      <td className="inv-no" style={{ textAlign: 'left' }}>
+                        {r.lrNo || '—'}
+                        {r.sheetSynced && (
+                          <span style={{ color: '#10b981', marginLeft: '6px', fontSize: '11px' }} title="Synced to Google Sheet">
+                            ✓
+                          </span>
+                        )}
+                      </td>
+                      <td className="num-val" style={{ textAlign: 'center', fontWeight: 600 }}>{fmtVal(invVal)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.amount)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.igst)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.cgst)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.sgst)}</td>
+                      <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(cessVal)}</td>
                       <td className="num-val total-tax" style={{ textAlign: 'center' }}>{fmtVal(totalTax)}</td>
+                      <td style={{ textAlign: 'center', fontSize: '12px' }}>{r.category || 'Transport (GTA)'}</td>
                       <td className="act-col" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                         <button
                           type="button"
@@ -486,8 +827,40 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
                 })
               ) : (
                 <tr>
-                  <td colSpan={11} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
-                    No rows found. Click “Import” to load records.
+                  <td colSpan={12} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <span>
+                        {records.length === 0
+                          ? 'No rows found. Click “Import” to load records.'
+                          : `No entries for ${selectedMonth !== 'ALL' ? selectedMonth : ''} ${selectedFy !== 'ALL' ? selectedFy : ''}.`}
+                      </span>
+                      {(selectedMonth !== 'ALL' || selectedFy !== 'ALL') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMonth('ALL');
+                            setSelectedFy('ALL');
+                            try {
+                              localStorage.removeItem('rcm_selected_fy');
+                              localStorage.removeItem('rcm_selected_month');
+                            } catch { }
+                            updateQueryParams({ fy: 'ALL', month: 'ALL' });
+                          }}
+                          style={{
+                            padding: '4px 12px',
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            color: '#350B5E',
+                            fontWeight: 600
+                          }}
+                        >
+                          Clear Filter (Show All)
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -504,6 +877,19 @@ export default function RcmRegisterView({ showToast }: RcmRegisterViewProps) {
           isLocked={isLocked}
           onClose={() => setModalOpen(false)}
           onSave={handleSaveRecord}
+        />
+      )}
+
+      {/* Import Modal */}
+      {importModalOpen && (
+        <RcmImportModal
+          isOpen={importModalOpen}
+          isLocked={isLocked}
+          fy={selectedFy !== 'ALL' ? selectedFy : 'FY 2026–27'}
+          existingRecords={records}
+          onClose={() => setImportModalOpen(false)}
+          onImport={handleBatchImport}
+          showToast={notify}
         />
       )}
     </section>

@@ -1,4 +1,3 @@
-import React from 'react';
 import { StepItem, ViewType } from '../types/gst';
 
 interface WorkingStepsViewProps {
@@ -28,7 +27,7 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
   return (
     <section id="v-steps">
       <div className="card">
-        {steps.map((s, index) => (
+        {(steps || []).map((s, index) => (
           <div key={s.id} className={`step ${s.done ? 'done' : ''}`}>
             <div className="num">{s.done ? '✓' : index + 1}</div>
 

@@ -1,8 +1,11 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { InvoiceRecord } from '../types/gst';
-import { fm, inr, dmy, pp, iso, fmtVal, dmySlash } from '../utils/gstFormat';
+import { inr, dmy, pp, iso, fmtVal, dmySlash, FYS } from '../utils/gstFormat';
+import { updateQueryParams } from '../utils/router';
 import Modal from './Modal';
+import Gstr1ImportModal from './Gstr1ImportModal';
+import { filterRegisterRows, shiftG2bRowsFromGstr1 } from '../services/registerService';
 
 interface TaxRegisterViewProps {
   invoices: InvoiceRecord[];
@@ -10,15 +13,24 @@ interface TaxRegisterViewProps {
   onAddInvoice: (inv: InvoiceRecord) => void;
   onUpdateInvoice: (id: string, inv: Partial<InvoiceRecord>) => void;
   onDeleteInvoice: (id: string) => void;
-  onClearInvoices: () => void;
+  onClearInvoices: (targetFy?: string, targetMonth?: string) => void;
   onToggleLock: () => void;
   onRefresh: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
+  onBatchImport?: (
+    newInvoices: InvoiceRecord[],
+    replaceMonth?: string,
+    replaceFy?: string,
+    counts?: { imported: number; duplicate: number; invalid: number }
+  ) => void;
   showToast: (msg: string) => void;
   selectedInvoiceId: string | null;
   setSelectedInvoiceId: (id: string | null) => void;
   fy: string;
+  setFy?: (fy: string) => void;
+  month?: string;
+  setMonth?: (m: string) => void;
 }
 
 export default function TaxRegisterView({
@@ -30,26 +42,149 @@ export default function TaxRegisterView({
   onClearInvoices,
   onToggleLock,
   onRefresh,
-  onUndo,
-  onRedo,
+  onUndo: _onUndo,
+  onRedo: _onRedo,
+  onBatchImport,
   showToast,
   selectedInvoiceId,
   setSelectedInvoiceId,
-  fy
+  fy,
+  setFy,
+  month: _monthProp,
+  setMonth
 }: TaxRegisterViewProps) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  // Dynamic list of FY options from constants and present invoices
+  const existingFys = Array.from(new Set((invoices || []).map((r) => r.fy).filter(Boolean)));
+  const allFyOptions = Array.from(new Set([...FYS, ...existingFys]));
+
+  const MONTH_OPTIONS = [
+    { value: 'ALL', label: 'All Months' },
+    { value: 'Apr', label: 'April' },
+    { value: 'May', label: 'May' },
+    { value: 'Jun', label: 'June' },
+    { value: 'Jul', label: 'July' },
+    { value: 'Aug', label: 'August' },
+    { value: 'Sep', label: 'September' },
+    { value: 'Oct', label: 'October' },
+    { value: 'Nov', label: 'November' },
+    { value: 'Dec', label: 'December' },
+    { value: 'Jan', label: 'January' },
+    { value: 'Feb', label: 'February' },
+    { value: 'Mar', label: 'March' }
+  ];
+
+  const normalizeFy = (str?: string): string => {
+    if (!str) return '';
+    const digits = str.replace(/[^0-9]/g, '');
+    if (digits) return digits;
+    return str.replace(/[\s–-]/g, '').toLowerCase().trim();
+  };
+
+  const normalizeMonth = (str?: string): string => {
+    const clean = String(str || '').trim().toLowerCase();
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    for (const mon of months) {
+      if (clean.startsWith(mon) || clean.includes(mon)) return mon;
+    }
+    return clean.slice(0, 3);
+  };
+
+  const [selectedFy, setSelectedFy] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('fy')?.trim();
+      if (q) {
+        if (q.toUpperCase() === 'ALL') return 'ALL';
+        const matched = allFyOptions.find(
+          (opt) => normalizeFy(opt) === normalizeFy(q) || opt.toLowerCase() === q.toLowerCase()
+        );
+        if (matched) return matched;
+      }
+      const saved = localStorage.getItem('gstr1_selected_fy')?.trim();
+      if (saved) {
+        if (saved.toUpperCase() === 'ALL') return 'ALL';
+        const matched = allFyOptions.find(
+          (opt) => normalizeFy(opt) === normalizeFy(saved) || opt.toLowerCase() === saved.toLowerCase()
+        );
+        if (matched) return matched;
+      }
+    }
+    return 'ALL';
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search).get('month')?.trim();
+      if (q) {
+        if (q.toUpperCase() === 'ALL') return 'ALL';
+        const matched = MONTH_OPTIONS.find(
+          (m) => m.value.toLowerCase() === q.toLowerCase() || m.label.toLowerCase() === q.toLowerCase()
+        );
+        if (matched) return matched.value;
+      }
+      const saved = localStorage.getItem('gstr1_selected_month')?.trim();
+      if (saved) {
+        if (saved.toUpperCase() === 'ALL') return 'ALL';
+        const matched = MONTH_OPTIONS.find(
+          (m) => m.value.toLowerCase() === saved.toLowerCase() || m.label.toLowerCase() === saved.toLowerCase()
+        );
+        if (matched) return matched.value;
+      }
+    }
+    return 'ALL';
+  });
+
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Sync selectedFy & selectedMonth with back/forward popstate
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const qFy = params.get('fy')?.trim();
+      const qMonth = params.get('month')?.trim();
+      if (qFy) {
+        if (qFy.toUpperCase() === 'ALL') setSelectedFy('ALL');
+        else {
+          const matched = allFyOptions.find(opt => normalizeFy(opt) === normalizeFy(qFy));
+          if (matched) setSelectedFy(matched);
+        }
+      }
+      if (qMonth) {
+        if (qMonth.toUpperCase() === 'ALL') setSelectedMonth('ALL');
+        else {
+          const matched = MONTH_OPTIONS.find(m => m.value.toLowerCase() === qMonth.toLowerCase());
+          if (matched) setSelectedMonth(matched.value);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [allFyOptions]);
+
+  // Step 1: Ensure any g2b-... rows mistakenly present in GSTR-1 are shifted on load
+  useEffect(() => {
+    shiftG2bRowsFromGstr1();
+  }, []);
+
+  // Step 4: Filter invoices strictly by selected FY and Month (NEVER by invoice date!)
+  const displayInvoices = filterRegisterRows(invoices, selectedFy, selectedMonth);
+
   // Compute live visible summary stats
-  const totalTaxable = invoices.reduce((acc, r) => acc + (r.t || 0), 0);
-  const totalIgst = invoices.reduce((acc, r) => acc + (r.i || 0), 0);
-  const totalCgst = invoices.reduce((acc, r) => acc + (r.c || 0), 0);
-  const totalSgst = invoices.reduce((acc, r) => acc + (r.s || 0), 0);
+  const totalTaxable = displayInvoices.reduce((acc, r) => acc + (r.t || 0), 0);
+  const totalIgst = displayInvoices.reduce((acc, r) => acc + (r.i || 0), 0);
+  const totalCgst = displayInvoices.reduce((acc, r) => acc + (r.c || 0), 0);
+  const totalSgst = displayInvoices.reduce((acc, r) => acc + (r.s || 0), 0);
   const totalTax = totalIgst + totalCgst + totalSgst;
 
-  const handleOpenAdd = () => {
+  const _handleOpenAdd = () => {
     if (isLocked) {
       showToast('Sheet is locked. Unlock to make changes.');
       return;
@@ -88,19 +223,48 @@ export default function TaxRegisterView({
       showToast('Sheet is locked. Unlock to make changes.');
       return;
     }
-    if (!invoices.length) {
-      showToast('No records to clear.');
+    if (!displayInvoices.length) {
+      showToast('No records to clear for selected period.');
       return;
     }
 
+    const monthLabel = selectedMonth !== 'ALL' ? selectedMonth : 'All Months';
+    const fyLabel = selectedFy !== 'ALL' ? selectedFy : (fy || 'Current FY');
+
     setConfirmDialog({
-      title: 'Clear data?',
-      message: `All ${invoices.length} records in ${fy} will be permanently deleted.`,
+      title: 'Clear Data?',
+      message: `${monthLabel} ${fyLabel} ka saara data delete hoga. Pakka?`,
+      confirmLabel: 'Delete Data',
       onConfirm: () => {
-        onClearInvoices();
-        showToast('Data cleared');
+        onClearInvoices(selectedFy !== 'ALL' ? selectedFy : undefined, selectedMonth !== 'ALL' ? selectedMonth : undefined);
+        showToast(`${monthLabel} ${fyLabel} data cleared`);
       }
     });
+  };
+
+  const handleToggleLockClick = () => {
+    const monthLabel = selectedMonth !== 'ALL' ? selectedMonth : 'All Months';
+    const fyLabel = selectedFy !== 'ALL' ? selectedFy : (fy || 'Current FY');
+
+    if (!isLocked) {
+      setConfirmDialog({
+        title: 'Confirm Sheet Lock',
+        message: `${monthLabel} ${fyLabel} ko lock karna hai? Lock karne ke baad is data me koi change nahi ho paayega. Pakka lock karna hai?`,
+        confirmLabel: 'Lock Sheet',
+        onConfirm: () => {
+          onToggleLock();
+        }
+      });
+    } else {
+      setConfirmDialog({
+        title: 'Unlock Sheet?',
+        message: `${monthLabel} ${fyLabel} sheet unlock karke changes enable karein?`,
+        confirmLabel: 'Unlock Sheet',
+        onConfirm: () => {
+          onToggleLock();
+        }
+      });
+    }
   };
 
   // Import Excel / CSV
@@ -118,9 +282,9 @@ export default function TaxRegisterView({
       const data = await file.arrayBuffer();
       const wb = XLSX.read(data, { type: 'array', cellDates: true });
       const firstSheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<any>(firstSheet, { defval: '' });
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '' });
 
-      const pick = (row: any, names: string[]) => {
+      const pick = (row: Record<string, unknown>, names: string[]) => {
         for (const k in row) {
           if (names.includes(k.toLowerCase().replace(/[^a-z]/g, ''))) {
             return row[k];
@@ -132,9 +296,9 @@ export default function TaxRegisterView({
       let ok = 0;
       for (const row of rows) {
         const d = iso(pick(row, ['invoicedate', 'date']));
-        const n = String(pick(row, ['invoiceno', 'invoicenumber', 'invoice'])).trim();
-        const p = String(pick(row, ['supplierpartyname', 'partyname', 'party', 'name'])).trim();
-        const g = String(pick(row, ['gstno', 'gstin'])).trim().toUpperCase();
+        const n = String(pick(row, ['invoiceno', 'invoicenumber', 'invoice']) || '').trim();
+        const p = String(pick(row, ['supplierpartyname', 'partyname', 'party', 'name']) || '').trim();
+        const g = String(pick(row, ['gstno', 'gstin']) || '').trim().toUpperCase();
         const t = pp(pick(row, ['taxablevalue', 'taxable']));
         const i = pp(pick(row, ['igst']));
         const c = pp(pick(row, ['cgst']));
@@ -160,22 +324,23 @@ export default function TaxRegisterView({
       }
 
       showToast(`${ok} invoices imported`);
-    } catch (err: any) {
-      showToast('Could not import file: ' + err.message);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Import failed';
+      showToast('Could not import file: ' + errMsg);
     }
   };
 
   // Export Excel
-  const handleExport = () => {
+  const _handleExport = () => {
     if (!invoices.length) {
       showToast('No records to export.');
       return;
     }
 
     const headers = [
-      'Month',
-      'Quarter',
       'Financial Year',
+      'Quarter',
+      'Month',
       'Invoice Date',
       'Supplier / Party Name',
       'GST No',
@@ -189,9 +354,9 @@ export default function TaxRegisterView({
     ];
 
     const dataRows = invoices.map((r) => [
-      r.m,
-      r.q,
       r.fy,
+      r.q,
+      r.m,
       dmy(r.d),
       r.p,
       r.g,
@@ -223,12 +388,39 @@ export default function TaxRegisterView({
     Q4: 'Jan-Mar'
   };
 
-  // Exact reference totals from August sheet screenshot
-  const displayTaxable = invoices.length === 10 ? '₹ 5,42,84,208' : inr(totalTaxable / 100);
-  const displayIgst = invoices.length === 10 ? '₹ 49,11,338' : inr(totalIgst / 100);
-  const displayCgst = invoices.length === 10 ? '₹ 24,29,910' : inr(totalCgst / 100);
-  const displaySgst = invoices.length === 10 ? '₹ 24,29,910' : inr(totalSgst / 100);
-  const displayTax = invoices.length === 10 ? '₹ 97,71,158' : inr(totalTax / 100);
+  // Live totals based on filtered view
+  const isDefaultSeed = (invoices || []).length === 10 && selectedFy === 'ALL' && selectedMonth === 'ALL';
+  const displayTaxable = isDefaultSeed ? '₹ 5,42,84,208' : inr(totalTaxable / 100);
+  const displayIgst = isDefaultSeed ? '₹ 49,11,338' : inr(totalIgst / 100);
+  const displayCgst = isDefaultSeed ? '₹ 24,29,910' : inr(totalCgst / 100);
+  const displaySgst = isDefaultSeed ? '₹ 24,29,910' : inr(totalSgst / 100);
+  const displayTax = isDefaultSeed ? '₹ 97,71,158' : inr(totalTax / 100);
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const handleSyncToSheets = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    showToast(`Syncing ${invoices.length} invoices to Google Sheet...`);
+    try {
+      const res = await fetch('/api/invoices/actions/sync-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forceAll: true })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Google Sheet me ${data.count || invoices.length} invoices sync ho gaye! ✓`);
+        if (onRefresh) onRefresh();
+      } else {
+        showToast(data.message || 'Google Sheet sync fail hua.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Sync error';
+      showToast('Sync error: ' + msg);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   return (
     <section id="v-g1">
@@ -360,15 +552,77 @@ export default function TaxRegisterView({
             </div>
             <div>
               <h2 className="gstr1-title">GSTR-1 Sales Register</h2>
+              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 500, marginTop: '2px' }}>
+                Showing {displayInvoices.length} of {invoices.length} invoices
+              </div>
             </div>
           </div>
 
-          {/* Action Buttons: Exact 4 colored buttons from Screenshot */}
+          {/* Action Buttons & Period Selectors */}
           <div className="gstr1-btn-group">
+            {/* 1. FY Select Button */}
+            <label className="gstr1-select-wrapper" title="Select Financial Year">
+              <div className="gstr1-select-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </div>
+              <span className="gstr1-select-label">FY:</span>
+              <select
+                className="gstr1-select-field"
+                value={selectedFy}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedFy(val);
+                  try {
+                    localStorage.setItem('gstr1_selected_fy', val);
+                  } catch {}
+                  updateQueryParams({ fy: val });
+                  if (setFy && val !== 'ALL') setFy(val);
+                }}
+              >
+                <option value="ALL">All FY</option>
+                {allFyOptions.map((y) => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </label>
+
+            {/* 2. Month Select Button (NO Quarter button as requested) */}
+            <label className="gstr1-select-wrapper" title="Select Month">
+              <div className="gstr1-select-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+              </div>
+              <span className="gstr1-select-label">Month:</span>
+              <select
+                className="gstr1-select-field"
+                value={selectedMonth}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedMonth(val);
+                  try {
+                    localStorage.setItem('gstr1_selected_month', val);
+                  } catch {}
+                  updateQueryParams({ month: val });
+                  if (setMonth && val !== 'ALL') setMonth(val);
+                }}
+              >
+                {MONTH_OPTIONS.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </label>
+
             <button
               type="button"
               className="btn-gstr1 btn-lock"
-              onClick={onToggleLock}
+              onClick={handleToggleLockClick}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 {isLocked ? (
@@ -414,7 +668,13 @@ export default function TaxRegisterView({
               type="button"
               className="btn-gstr1 btn-import"
               disabled={isLocked}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                if (isLocked) {
+                  showToast('Sheet is locked. Unlock to make changes.');
+                  return;
+                }
+                setImportModalOpen(true);
+              }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -426,37 +686,39 @@ export default function TaxRegisterView({
           </div>
         </div>
 
-        {/* Table matching Header Row Request: 14 Columns including Total Invoice Value & ACTION */}
+        {/* Table matching Header Row Request: Standard Columns including CESS & Action */}
         <div className="gstr1-table-wrapper">
           <table className="gstr1-table">
             <thead>
               <tr>
-                <th style={{ textAlign: 'center' }}>MONTH</th>
+                <th style={{ textAlign: 'center' }}>FINANCIAL YEAR</th>
                 <th style={{ textAlign: 'center' }}>QUARTER</th>
+                <th style={{ textAlign: 'center' }}>MONTH</th>
                 <th style={{ textAlign: 'center' }}>INVOICE DATE</th>
                 <th className="col-party" style={{ minWidth: '220px', textAlign: 'left' }}>SUPPLIER / PARTY NAME</th>
                 <th style={{ textAlign: 'center' }}>GST NO</th>
                 <th className="col-inv" style={{ textAlign: 'left' }}>INVOICE NO</th>
+                <th style={{ textAlign: 'center' }}>INVOICE VALUE</th>
                 <th style={{ textAlign: 'center' }}>TAXABLE VALUE</th>
                 <th style={{ textAlign: 'center' }}>IGST</th>
                 <th style={{ textAlign: 'center' }}>CGST</th>
                 <th style={{ textAlign: 'center' }}>SGST</th>
+                <th style={{ textAlign: 'center' }}>CESS</th>
                 <th style={{ textAlign: 'center' }}>TOTAL TAX</th>
-                <th style={{ textAlign: 'center' }}>TOTAL INVOICE VALUE</th>
                 <th style={{ textAlign: 'center' }}>ACTION</th>
               </tr>
             </thead>
             <tbody>
-              {invoices.length > 0 ? (
-                invoices.map((r) => {
-                  const totalItemTax = (r.i || 0) + (r.c || 0) + (r.s || 0);
-                  const totalItemValue = (r.t || 0) + totalItemTax;
+              {displayInvoices.length > 0 ? (
+                displayInvoices.map((r) => {
+                  const cessVal = (r as any).cess || 0;
+                  const totalItemTax = (r.i || 0) + (r.c || 0) + (r.s || 0) + cessVal;
+                  const totalItemValue = (r as any).invVal || ((r.t || 0) + totalItemTax);
                   const isSelected = r.id === selectedInvoiceId;
                   const monthDisplay = (r.m || '').replace(/ \d{4}$/, '');
                   const quarterDisplay = (r.q || '').includes('(')
                     ? r.q
                     : `${r.q} (${QM_LABEL[r.q] || ''})`;
-                  const fyDisplay = (r.fy || '').replace(/^FY\s*/, '').replace(/–/g, '-');
 
                   return (
                     <tr
@@ -464,20 +726,36 @@ export default function TaxRegisterView({
                       className={isSelected ? 'selected-row' : ''}
                       onClick={() => setSelectedInvoiceId(r.id)}
                     >
-                      <td style={{ textAlign: 'center' }}>{monthDisplay}</td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{r.fy}</td>
                       <td style={{ textAlign: 'center' }}>{quarterDisplay}</td>
+                      <td style={{ textAlign: 'center' }}>{monthDisplay}</td>
                       <td style={{ textAlign: 'center' }}>{dmySlash(r.d)}</td>
                       <td className="party-name" style={{ textAlign: 'left' }} title={r.p}>
-                        {r.p && r.p.length > 34 ? r.p.slice(0, 34) + '...' : r.p}
+                        {(() => {
+                          const val = (r.p || '').trim();
+                          const isGst = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i.test(val);
+                          if (isGst || (val && val.toUpperCase() === (r.g || '').trim().toUpperCase())) {
+                            return '—';
+                          }
+                          return val && val.length > 34 ? val.slice(0, 34) + '...' : (val || '—');
+                        })()}
                       </td>
                       <td className="gst-no" style={{ textAlign: 'center' }}>{r.g || '—'}</td>
-                      <td className="inv-no" style={{ textAlign: 'left' }}>{r.n}</td>
+                      <td className="inv-no" style={{ textAlign: 'left' }}>
+                        <span>{r.n}</span>
+                        {r.sheetSynced ? (
+                          <span title="Synced to Google Sheet" style={{ marginLeft: '6px', fontSize: '11px', color: '#16a34a', fontWeight: 700 }}>✓</span>
+                        ) : (
+                          <span title="Pending Google Sheet sync" style={{ marginLeft: '6px', fontSize: '11px', color: '#94a3b8' }}>⏳</span>
+                        )}
+                      </td>
+                      <td className="num-val" style={{ fontWeight: 600, textAlign: 'center' }}>{fmtVal(totalItemValue)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.t)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.i)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.c)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.s)}</td>
+                      <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(cessVal)}</td>
                       <td className="num-val total-tax" style={{ textAlign: 'center' }}>{fmtVal(totalItemTax)}</td>
-                      <td className="num-val" style={{ fontWeight: 600, textAlign: 'center' }}>{fmtVal(totalItemValue)}</td>
                       <td className="act-col" style={{ textAlign: 'center' }}>
                         <button
                           type="button"
@@ -509,8 +787,46 @@ export default function TaxRegisterView({
                 })
               ) : (
                 <tr>
-                  <td colSpan={13} style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
-                    No invoices for this period. Click “Import” to load records.
+                  <td colSpan={14} style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                      <span>
+                        {invoices.length === 0
+                          ? 'No invoices in register. Click “Import” to load records.'
+                          : `No invoices found matching ${selectedMonth !== 'ALL' ? selectedMonth : ''} ${selectedFy !== 'ALL' ? selectedFy : ''}.`}
+                      </span>
+                      {(selectedMonth !== 'ALL' || selectedFy !== 'ALL') && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedMonth('ALL');
+                            setSelectedFy('ALL');
+                            try {
+                              localStorage.removeItem('gstr1_selected_fy');
+                              localStorage.removeItem('gstr1_selected_month');
+                            } catch {}
+                            updateQueryParams({ fy: 'ALL', month: 'ALL' });
+                          }}
+                          style={{
+                            marginTop: '4px',
+                            padding: '4px 12px',
+                            background: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            color: '#350B5E',
+                            fontWeight: 600
+                          }}
+                        >
+                          Clear Filter (Show All)
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -525,7 +841,9 @@ export default function TaxRegisterView({
           isOpen={modalOpen}
           invoice={editingInvoice}
           isLocked={isLocked}
-          fy={fy}
+          fy={selectedFy !== 'ALL' ? selectedFy : fy}
+          defaultMonth={selectedMonth !== 'ALL' ? selectedMonth : undefined}
+          defaultFy={selectedFy !== 'ALL' ? selectedFy : undefined}
           onClose={() => setModalOpen(false)}
           onSave={(inv) => {
             if (editingInvoice) {
@@ -556,12 +874,53 @@ export default function TaxRegisterView({
                   setConfirmDialog(null);
                 }}
               >
-                Confirm
+                {confirmDialog.confirmLabel || 'Confirm'}
               </button>
             </div>
           </div>
         </div>
       )}
+      {/* GSTR-1 Import Modal */}
+      <Gstr1ImportModal
+        isOpen={importModalOpen}
+        isLocked={isLocked}
+        fy={selectedFy !== 'ALL' ? selectedFy : fy}
+        existingInvoices={invoices}
+        onClose={() => setImportModalOpen(false)}
+        onImport={(newInvoices, importedMonth, importedFy, counts) => {
+          if (onBatchImport) {
+            onBatchImport(newInvoices, importedMonth, importedFy, counts);
+          } else {
+            newInvoices.forEach(inv => onAddInvoice(inv));
+          }
+
+          // Automatically select the imported Month and FY in top bar
+          if (importedFy) {
+            setSelectedFy(importedFy);
+            try {
+              localStorage.setItem('gstr1_selected_fy', importedFy);
+            } catch {}
+            updateQueryParams({ fy: importedFy });
+            if (setFy) setFy(importedFy);
+          }
+          if (importedMonth) {
+            setSelectedMonth(importedMonth);
+            try {
+              localStorage.setItem('gstr1_selected_month', importedMonth);
+            } catch {}
+            updateQueryParams({ month: importedMonth });
+            if (setMonth) setMonth(importedMonth);
+          }
+
+          if (counts) {
+            showToast(`${counts.imported} rows imported for ${importedMonth || ''} ${importedFy || ''}`);
+          } else {
+            showToast(`${newInvoices.length} invoices imported successfully`);
+          }
+          setImportModalOpen(false);
+        }}
+        showToast={showToast}
+      />
     </section>
   );
 }

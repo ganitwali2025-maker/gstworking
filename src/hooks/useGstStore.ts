@@ -1,21 +1,96 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ViewType, InvoiceRecord, StepItem, BusinessSettings } from '../types/gst';
 import { SEED_MONTHLY_DATA, SEED_STEPS, SEED_SETTINGS, SEED_INVOICES, SEED_RCM } from '../data/seedData';
-import { FYS, QM } from '../utils/gstFormat';
+import { FYS } from '../utils/gstFormat';
+import { getViewFromPath, navigateTo, getQueryParams } from '../utils/router';
+import { syncModuleToSheets } from '../services/sheetSync';
+import { STANDARD_SHEET_HEADERS, mapRowToSheetRow } from '../services/registerService';
 
 const LOCAL_STORAGE_KEY_INVOICES = 'gstr1_register_v4';
 const LOCAL_STORAGE_KEY_LOCK = 'gstr1_lock_v1';
 const LOCAL_STORAGE_KEY_SETTINGS = 'gst_settings_v1';
 const LOCAL_STORAGE_KEY_STEPS = 'gst_steps_v1';
+const LOCAL_STORAGE_KEY_LOGGED_OUT = 'gst_is_logged_out';
 
 export function useGstStore() {
-  const [view, setView] = useState<ViewType>('itc');
-  const [fy, setFy] = useState<string>(FYS[0]);
+  const [view, setViewState] = useState<ViewType>(() => {
+    if (typeof window !== 'undefined') {
+      const matched = getViewFromPath(window.location.pathname);
+      if (matched) return matched;
+    }
+    return 'itc';
+  });
+
+  const [fy, setFyState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const q = getQueryParams();
+      if (q.fy) return q.fy;
+      const saved = localStorage.getItem('gst_active_fy');
+      if (saved) return saved;
+    }
+    return FYS[0];
+  });
+
   const [quarter, setQuarter] = useState<string>('');
-  const [month, setMonth] = useState<string>('Oct 2026');
+
+  const [month, setMonthState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const q = getQueryParams();
+      if (q.month) return q.month;
+      const saved = localStorage.getItem('gst_active_month');
+      if (saved) return saved;
+    }
+    return 'Oct 2026';
+  });
+
+  const setView = useCallback((nextView: ViewType) => {
+    setViewState(nextView);
+    navigateTo(nextView);
+  }, []);
+
+  const setFy = useCallback((newFy: string) => {
+    setFyState(newFy);
+    try {
+      localStorage.setItem('gst_active_fy', newFy);
+    } catch {}
+  }, []);
+
+  const setMonth = useCallback((newMonth: string) => {
+    setMonthState(newMonth);
+    try {
+      localStorage.setItem('gst_active_month', newMonth);
+    } catch {}
+  }, []);
+
+  // Listen to browser Back/Forward (popstate) and ensure valid canonical route on initial load
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const currentPath = window.location.pathname;
+    const matched = getViewFromPath(currentPath);
+    if (!matched || currentPath === '/') {
+      navigateTo(matched || 'itc', undefined, undefined, true);
+    }
+
+    const handlePopState = () => {
+      const currentMatched = getViewFromPath(window.location.pathname);
+      if (currentMatched) {
+        setViewState(currentMatched);
+      } else {
+        setViewState('itc');
+        navigateTo('itc', undefined, undefined, true);
+      }
+      const q = getQueryParams();
+      if (q.fy) setFyState(q.fy);
+      if (q.month) setMonthState(q.month);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Dashboard Data
-  const [monthlyData, setMonthlyData] = useState(SEED_MONTHLY_DATA);
+  const [monthlyData] = useState(SEED_MONTHLY_DATA);
   const [rcmList] = useState(SEED_RCM);
 
   // Invoices & Lock
@@ -95,7 +170,24 @@ export function useGstStore() {
 
   // UI
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [isLoggedOut, setIsLoggedOut] = useState<boolean>(false);
+  const [isLoggedOut, setIsLoggedOutState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(LOCAL_STORAGE_KEY_LOGGED_OUT) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const setIsLoggedOut = useCallback((val: boolean) => {
+    setIsLoggedOutState(val);
+    try {
+      if (val) {
+        localStorage.setItem(LOCAL_STORAGE_KEY_LOGGED_OUT, '1');
+      } else {
+        localStorage.removeItem(LOCAL_STORAGE_KEY_LOGGED_OUT);
+      }
+    } catch {}
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -129,13 +221,18 @@ export function useGstStore() {
   // Sync with API when available
   const fetchApiInvoices = async () => {
     try {
-      const res = await fetch(`/api/invoices?fy=${encodeURIComponent(fy)}`);
+      const res = await fetch('/api/invoices');
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
-          setInvoices(json.data);
+          setInvoices((prev) => {
+            const backendIds = new Set(json.data.map((r: InvoiceRecord) => r.id));
+            const unsyncedLocal = prev.filter((r) => !backendIds.has(r.id));
+            const merged = [...json.data, ...unsyncedLocal];
+            persistInvoices(merged, !!json.locked);
+            return merged;
+          });
           setIsLocked(!!json.locked);
-          persistInvoices(json.data, !!json.locked);
         }
       }
     } catch (e) {
@@ -173,6 +270,17 @@ export function useGstStore() {
     fetchApiInvoices();
     fetchApiSteps();
     fetchApiSettings();
+
+    const handleSynced = (e: any) => {
+      if (e.detail?.tab === 'GSTR-1') {
+        try {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY_INVOICES);
+          if (saved) setInvoices(JSON.parse(saved));
+        } catch {}
+      }
+    };
+    window.addEventListener('register-synced', handleSynced);
+    return () => window.removeEventListener('register-synced', handleSynced);
   }, [fy]);
 
   // Invoice Actions
@@ -182,11 +290,22 @@ export function useGstStore() {
     setInvoices(updated);
     persistInvoices(updated);
     try {
-      await fetch('/api/invoices', {
+      const res = await fetch('/api/invoices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(record)
       });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.sheetWarning) {
+          showToast(json.sheetWarning);
+        }
+        if (json.data && typeof json.data.sheetSynced === 'boolean') {
+          setInvoices((prev) =>
+            prev.map((r) => (r.id === record.id ? { ...r, sheetSynced: json.data.sheetSynced } : r))
+          );
+        }
+      }
     } catch (e) {}
   };
 
@@ -196,11 +315,22 @@ export function useGstStore() {
     setInvoices(updated);
     persistInvoices(updated);
     try {
-      await fetch(`/api/invoices/${id}`, {
+      const res = await fetch(`/api/invoices/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedRecord)
       });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.sheetWarning) {
+          showToast(json.sheetWarning);
+        }
+        if (json.data && typeof json.data.sheetSynced === 'boolean') {
+          setInvoices((prev) =>
+            prev.map((r) => (r.id === id ? { ...r, sheetSynced: json.data.sheetSynced } : r))
+          );
+        }
+      }
     } catch (e) {}
   };
 
@@ -211,19 +341,125 @@ export function useGstStore() {
     if (selectedInvoiceId === id) setSelectedInvoiceId(null);
     persistInvoices(updated);
     try {
-      await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/invoices/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.sheetWarning) {
+          showToast(json.sheetWarning);
+        }
+      }
     } catch (e) {}
   };
 
-  const clearInvoices = async () => {
+  const clearInvoices = async (targetFy?: string, targetMonth?: string) => {
     pushInvoiceHistory(invoices);
-    const updated = invoices.filter(r => r.fy !== fy);
+    const normalizeMonth = (m?: string): string => {
+      if (!m) return '';
+      const clean = m.trim().toLowerCase();
+      const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      for (const mon of months) {
+        if (clean.startsWith(mon) || clean.includes(mon)) return mon;
+      }
+      return clean.slice(0, 3);
+    };
+    const normalizeFy = (fyStr?: string): string => {
+      if (!fyStr) return '';
+      const digits = fyStr.replace(/[^0-9]/g, '');
+      if (digits) return digits;
+      return fyStr.trim().toLowerCase().replace(/[\s–-]/g, '');
+    };
+
+    const hasFyFilter = targetFy && targetFy !== 'ALL';
+    const hasMonthFilter = targetMonth && targetMonth !== 'ALL';
+
+    const updated = invoices.filter(r => {
+      const fyMatch = !hasFyFilter || normalizeFy(r.fy) === normalizeFy(targetFy);
+      const monthMatch = !hasMonthFilter || normalizeMonth(r.m) === normalizeMonth(targetMonth);
+      if (fyMatch && monthMatch) {
+        return false;
+      }
+      return true;
+    });
+
     setInvoices(updated);
     setSelectedInvoiceId(null);
     persistInvoices(updated);
+
     try {
-      await fetch(`/api/invoices/actions/clear?fy=${encodeURIComponent(fy)}`, { method: 'DELETE' });
+      const params = new URLSearchParams();
+      if (hasFyFilter) params.append('fy', targetFy);
+      if (hasMonthFilter) params.append('m', targetMonth);
+      await fetch(`/api/invoices/actions/clear?${params.toString()}`, { method: 'DELETE' });
     } catch (e) {}
+  };
+
+  const batchImportInvoices = async (
+    newRecords: InvoiceRecord[],
+    importMonth?: string,
+    importFy?: string
+  ) => {
+    pushInvoiceHistory(invoices);
+    const updated = [...invoices, ...newRecords];
+    setInvoices(updated);
+    persistInvoices(updated);
+
+    try {
+      const res = await fetch('/api/invoices/actions/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: newRecords,
+          fixedMonth: importMonth,
+          fixedFy: importFy
+        })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.sheetWarning) {
+          showToast(json.sheetWarning);
+        } else if (json.sheetSynced) {
+          const syncedIds = new Set(newRecords.map((r) => r.id));
+          const finalInvoices = updated.map((r) => (syncedIds.has(r.id) ? { ...r, sheetSynced: true } : r));
+          setInvoices(finalInvoices);
+          persistInvoices(finalInvoices);
+          showToast(`${newRecords.length} invoices imported & Google Sheet me sync ho gaye!`);
+        }
+      } else {
+        // Direct sheet sync fallback
+        const rows = newRecords.map((r) => mapRowToSheetRow(r, 'GSTR-1'));
+        const sheetRes = await syncModuleToSheets({
+          action: 'upsert',
+          sheet: 'GSTR-1',
+          headers: STANDARD_SHEET_HEADERS,
+          rows
+        });
+        if (sheetRes.success) {
+          const syncedIds = new Set(newRecords.map((r) => r.id));
+          const finalInvoices = updated.map((r) => (syncedIds.has(r.id) ? { ...r, sheetSynced: true } : r));
+          setInvoices(finalInvoices);
+          persistInvoices(finalInvoices);
+          showToast(`${newRecords.length} invoices imported & Google Sheet me sync ho gaye!`);
+        }
+      }
+    } catch (e) {
+      // Direct sheet sync fallback
+      try {
+        const rows = newRecords.map((r) => mapRowToSheetRow(r, 'GSTR-1'));
+        const sheetRes = await syncModuleToSheets({
+          action: 'upsert',
+          sheet: 'GSTR-1',
+          headers: STANDARD_SHEET_HEADERS,
+          rows
+        });
+        if (sheetRes.success) {
+          const syncedIds = new Set(newRecords.map((r) => r.id));
+          const finalInvoices = updated.map((r) => (syncedIds.has(r.id) ? { ...r, sheetSynced: true } : r));
+          setInvoices(finalInvoices);
+          persistInvoices(finalInvoices);
+          showToast(`${newRecords.length} invoices imported & Google Sheet me sync ho gaye!`);
+        }
+      } catch {}
+    }
   };
 
   const toggleLock = async (locked?: boolean) => {
@@ -231,13 +467,41 @@ export function useGstStore() {
     setIsLocked(newLock);
     persistInvoices(invoices, newLock);
     try {
-      await fetch('/api/invoices/actions/toggle-lock', {
+      const res = await fetch('/api/invoices/actions/toggle-lock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ locked: newLock })
       });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.sheetWarning) {
+          showToast(json.sheetWarning);
+          return;
+        }
+      }
     } catch (e) {}
     showToast(newLock ? 'Sheet locked' : 'Sheet unlocked');
+  };
+
+  const syncGoogleSheets = async (): Promise<{ success: boolean; count?: number; message?: string }> => {
+    try {
+      const res = await fetch('/api/invoices/actions/sync-sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const json = await res.json();
+      if (json.message) {
+        showToast(json.message);
+      }
+      if (json.success) {
+        await fetchApiInvoices();
+      }
+      return json;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Sync request failed';
+      showToast('Google Sheet sync fail hua: ' + msg);
+      return { success: false, message: msg };
+    }
   };
 
   // Step Actions
@@ -298,7 +562,9 @@ export function useGstStore() {
     updateInvoice,
     deleteInvoice,
     clearInvoices,
+    batchImportInvoices,
     toggleLock,
+    syncGoogleSheets,
     toggleStepDone,
     saveSettings,
     undoInvoices,

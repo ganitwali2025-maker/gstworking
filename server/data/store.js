@@ -114,12 +114,50 @@ const DEFAULT_DATA = {
 
 export function getDb() {
   try {
+    let data;
     if (!fs.existsSync(DB_PATH)) {
-      saveDb(DEFAULT_DATA);
-      return JSON.parse(JSON.stringify(DEFAULT_DATA));
+      data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+      saveDb(data);
+      return data;
     }
     const raw = fs.readFileSync(DB_PATH, 'utf-8');
-    return JSON.parse(raw);
+    data = JSON.parse(raw);
+
+    // Ensure registers structure exists
+    if (!data.registers) {
+      data.registers = {
+        'GSTR-1': Array.isArray(data.invoices) ? data.invoices : [],
+        'ITC-Purchase': [],
+        'RCM': [],
+        'GSTR-2B': []
+      };
+    } else {
+      if (!Array.isArray(data.registers['GSTR-1'])) data.registers['GSTR-1'] = Array.isArray(data.invoices) ? data.invoices : [];
+      if (!Array.isArray(data.registers['ITC-Purchase'])) data.registers['ITC-Purchase'] = [];
+      if (!Array.isArray(data.registers['RCM'])) data.registers['RCM'] = [];
+      if (!Array.isArray(data.registers['GSTR-2B'])) data.registers['GSTR-2B'] = [];
+    }
+
+    // Step 1: Shift any g2b-... rows mistakenly present in GSTR-1 to GSTR-2B
+    const gstr1Rows = data.registers['GSTR-1'] || [];
+    const g2bInGstr1 = gstr1Rows.filter(r => String(r.id || '').toLowerCase().startsWith('g2b'));
+    if (g2bInGstr1.length > 0) {
+      const remainingGstr1 = gstr1Rows.filter(r => !String(r.id || '').toLowerCase().startsWith('g2b'));
+      data.registers['GSTR-1'] = remainingGstr1;
+      data.invoices = remainingGstr1;
+      const existing2bIds = new Set((data.registers['GSTR-2B'] || []).map(r => r.id));
+      for (const row of g2bInGstr1) {
+        if (!existing2bIds.has(row.id)) {
+          data.registers['GSTR-2B'].push(row);
+          existing2bIds.add(row.id);
+        }
+      }
+      saveDb(data);
+    } else {
+      data.invoices = data.registers['GSTR-1'];
+    }
+
+    return data;
   } catch (err) {
     console.error('Error reading db.json:', err);
     return JSON.parse(JSON.stringify(DEFAULT_DATA));
@@ -128,6 +166,9 @@ export function getDb() {
 
 export function saveDb(data) {
   try {
+    if (data.registers && data.registers['GSTR-1']) {
+      data.invoices = data.registers['GSTR-1'];
+    }
     fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf-8');
     return true;
   } catch (err) {

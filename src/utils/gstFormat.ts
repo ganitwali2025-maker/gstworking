@@ -27,7 +27,7 @@ export const fmtVal = (p: number): string => {
   return num.toLocaleString('en-IN', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 };
 
-export const pp = (v: any): number => {
+export const pp = (v: unknown): number => {
   const t = String(v == null ? '' : v).replace(/[₹,\s]/g, '');
   if (t === '') return 0;
   const m = t.match(/^(\d*)\.?(\d*)$/);
@@ -55,7 +55,7 @@ export const fyList = (fy: string) => {
 export const dmy = (d: string): string => (d ? d.split('-').reverse().join('-') : '');
 export const dmySlash = (d: string): string => (d ? d.split('-').reverse().join('/') : '');
 
-export const iso = (v: any): string => {
+export const iso = (v: unknown): string => {
   if (v instanceof Date && !isNaN(v.getTime())) {
     const t = new Date(v.getTime() + 12 * 36e5);
     return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');

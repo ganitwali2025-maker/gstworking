@@ -1,4 +1,3 @@
-import React from 'react';
 import { inr } from '../utils/gstFormat';
 import { MonthlyStats } from '../types/gst';
 
@@ -9,21 +8,26 @@ interface ItcDashboardViewProps {
 }
 
 export default function ItcDashboardView({ month, setMonth, monthlyData }: ItcDashboardViewProps) {
-  const months = Object.keys(monthlyData);
-  const cur = monthlyData[month] || monthlyData[months[months.length - 1]];
+  const months = Object.keys(monthlyData || {});
+  const fallbackStats: MonthlyStats = {
+    liability: [0, 0, 0],
+    itc: [0, 0, 0],
+    rec: { matchRate: 0, booksItc: 0, gstr2bItc: 0, ineligible: 0 }
+  };
+  const cur = (monthlyData && (monthlyData[month] || monthlyData[months[months.length - 1]])) || fallbackStats;
 
-  const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+  const sum = (a: number[]) => (a || []).reduce((x, y) => x + y, 0);
 
-  const l = cur.liability;
-  const i = cur.itc;
+  const l = cur.liability || [0, 0, 0];
+  const i = cur.itc || [0, 0, 0];
   const totalLiab = sum(l);
   const totalItc = sum(i);
-  const cashPayable = sum(l.map((v, k) => Math.max(0, v - i[k])));
-  const itcCarryForward = sum(i.map((v, k) => Math.max(0, v - l[k])));
+  const cashPayable = sum(l.map((v, k) => Math.max(0, v - (i[k] || 0))));
+  const itcCarryForward = sum(i.map((v, k) => Math.max(0, v - (l[k] || 0))));
   const itcAdjusted = totalLiab - cashPayable;
 
   const trend = months.map((m) => {
-    const data = monthlyData[m];
+    const data = monthlyData[m] || fallbackStats;
     return {
       month: m,
       liability: sum(data.liability),

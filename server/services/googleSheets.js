@@ -1,0 +1,435 @@
+import fs from 'fs';
+
+// Standard 15 columns required by Step 2 across registers
+export const STANDARD_SHEET_HEADERS = [
+  'ID',
+  'Financial Year',
+  'Quarter',
+  'Month',
+  'Invoice Date',
+  'Supplier / Party Name',
+  'GST No',
+  'Invoice No',
+  'Invoice Value',
+  'Taxable Value',
+  'IGST',
+  'CGST',
+  'SGST',
+  'CESS',
+  'Total Tax'
+];
+
+// RCM specific columns appended after standard columns
+export const RCM_SHEET_HEADERS = [
+  ...STANDARD_SHEET_HEADERS,
+  'RCM Category',
+  'RCM Tax Rate',
+  'RCM Applicable',
+  'Eligible ITC'
+];
+
+export const REGISTER_TABS = {
+  GSTR1: 'GSTR-1',
+  ITC_PURCHASE: 'ITC-Purchase',
+  RCM: 'RCM',
+  GSTR2B: 'GSTR-2B'
+};
+
+export function getHeadersForTab(tabName) {
+  if (tabName === REGISTER_TABS.RCM) {
+    return RCM_SHEET_HEADERS;
+  }
+  return STANDARD_SHEET_HEADERS;
+}
+
+// Helper: Ensure .env is loaded if present and not already loaded
+function ensureEnvLoaded() {
+  if (!process.env.APPS_SCRIPT_URL && fs.existsSync('.env')) {
+    try {
+      if (typeof process.loadEnvFile === 'function') {
+        process.loadEnvFile('.env');
+      } else {
+        const envRaw = fs.readFileSync('.env', 'utf-8');
+        envRaw.split('\n').forEach((line) => {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#')) {
+            const eqIdx = trimmed.indexOf('=');
+            if (eqIdx !== -1) {
+              const k = trimmed.slice(0, eqIdx).trim();
+              const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+              if (!process.env[k]) process.env[k] = v;
+            }
+          }
+        });
+      }
+    } catch (_) {}
+  }
+}
+
+let warnedMissingConfig = false;
+
+function getConfig() {
+  ensureEnvLoaded();
+  const url = process.env.APPS_SCRIPT_URL?.trim();
+  const secret = process.env.APPS_SCRIPT_SECRET?.trim();
+
+  if (!url || !secret) {
+    if (!warnedMissingConfig) {
+      console.warn('[GoogleSheets] APPS_SCRIPT_URL or APPS_SCRIPT_SECRET not configured. Skipping Google Sheets sync.');
+      warnedMissingConfig = true;
+    }
+    return null;
+  }
+  return { url, secret };
+}
+
+function formatDateSlash(dateStr) {
+  if (!dateStr) return '';
+  const clean = String(dateStr).trim();
+  if (clean.includes('/')) return clean;
+  if (clean.includes('-')) {
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        // YYYY-MM-DD -> DD/MM/YYYY
+        return `${parts[2].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[0]}`;
+      }
+      return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`;
+    }
+  }
+  return clean;
+}
+
+/**
+ * Universal mapper: Maps any register record to standard sheet row structure
+ */
+export function mapRecordToSheetRow(rec, tabName = 'GSTR-1') {
+  // If record already has id and values array, pass as is
+  if (rec && rec.id && Array.isArray(rec.values)) {
+    return rec;
+  }
+
+  const isPaise = Boolean(rec.inPaise || (rec.t && rec.t > 100000) || (rec.taxable && rec.taxable > 100000));
+  const divisor = isPaise ? 100 : 1;
+
+  const tNum = (Number(rec.t ?? rec.taxable ?? rec.taxableValue ?? rec.amount) || 0) / divisor;
+  const iNum = (Number(rec.i ?? rec.igst) || 0) / divisor;
+  const cNum = (Number(rec.c ?? rec.cgst) || 0) / divisor;
+  const sNum = (Number(rec.s ?? rec.sgst) || 0) / divisor;
+  const cessNum = (Number(rec.cess) || 0) / divisor;
+  const totalTax = iNum + cNum + sNum + cessNum;
+  const invValRaw = rec.invVal ?? rec.totalInvoiceValue;
+  const invVal = invValRaw !== undefined ? (Number(invValRaw) || 0) / divisor : (tNum + totalTax);
+
+  const id = String(rec.id || ('rec-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)));
+  const fy = String(rec.fy || rec.financialYear || 'FY 2026–27');
+  const q = String(rec.q || rec.quarter || '');
+  const m = String(rec.m || rec.month || '');
+  const d = formatDateSlash(rec.d || rec.invoiceDate || '');
+  const rawP = String(rec.p || rec.tradeName || rec.partyName || rec.supplierName || rec.transporter || '');
+  const g = String(rec.g || rec.gstin || rec.gstNo || rec.supplierGstin || '').toUpperCase();
+  const isGstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i;
+  const p = (isGstRegex.test(rawP.trim()) && (rawP.trim().toUpperCase() === g || !g)) ? '' : rawP;
+  const n = String(rec.n || rec.invNo || rec.invoiceNo || rec.lrNo || '');
+
+  const standardValues = [
+    id,
+    fy,
+    q,
+    m,
+    d,
+    p,
+    g,
+    n,
+    invVal,
+    tNum,
+    iNum,
+    cNum,
+    sNum,
+    cessNum,
+    totalTax
+  ];
+
+  if (tabName === REGISTER_TABS.RCM) {
+    const category = rec.category || rec.expenseCategory || rec.head || 'Transport (GTA)';
+    const rate = rec.rate || rec.taxRate || 5;
+    const rcmApp = rec.rcmApplicable ?? 'Yes';
+    const eligibleItc = (rec.eligibleItc !== undefined ? Number(rec.eligibleItc) / divisor : totalTax);
+    return {
+      id,
+      values: [
+        ...standardValues,
+        category,
+        rate,
+        rcmApp,
+        eligibleItc
+      ]
+    };
+  }
+
+  return {
+    id,
+    values: standardValues
+  };
+}
+
+// Backwards-compatible alias for existing invoice routes
+export function mapInvoiceToSheetRow(inv) {
+  return mapRecordToSheetRow(inv, 'GSTR-1');
+}
+
+/**
+ * Core send helper to POST payload to Google Apps Script Web App
+ */
+async function sendToAppsScript(payload) {
+  const config = getConfig();
+  if (!config) {
+    return { ok: false, skipped: true, error: 'Google Sheets sync not configured' };
+  }
+
+  const { url, secret } = config;
+  const bodyToSend = {
+    secret,
+    ...payload
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyToSend),
+      redirect: 'follow'
+    });
+
+    if (!res.ok) {
+      return { ok: false, error: `HTTP ${res.status}` };
+    }
+
+    const json = await res.json().catch(() => null);
+    if (!json) {
+      return { ok: false, error: 'Invalid JSON response from Google Sheet Web App' };
+    }
+
+    return {
+      ok: Boolean(json.ok),
+      count: json.count || 0,
+      shiftedCount: json.shiftedCount || 0,
+      error: json.error || null
+    };
+  } catch (err) {
+    // If local Windows machine or proxy causes TLS leaf cert issue, retry safely
+    if (err && (err.cause?.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' || err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE')) {
+      try {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+        const retryRes = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyToSend),
+          redirect: 'follow'
+        });
+        const retryJson = await retryRes.json().catch(() => null);
+        if (retryJson) {
+          return {
+            ok: Boolean(retryJson.ok),
+            count: retryJson.count || 0,
+            shiftedCount: retryJson.shiftedCount || 0,
+            error: retryJson.error || null
+          };
+        }
+      } catch (_) {}
+    }
+
+    const msg = err instanceof Error ? err.message : 'Network error';
+    return {
+      ok: false,
+      error: msg
+    };
+  }
+}
+
+/**
+ * Ensures all 4 tabs (GSTR-1, ITC-Purchase, RCM, GSTR-2B) exist with correct headers
+ */
+export async function ensureAllTabs() {
+  const tabs = [
+    { name: REGISTER_TABS.GSTR1, headers: STANDARD_SHEET_HEADERS },
+    { name: REGISTER_TABS.ITC_PURCHASE, headers: STANDARD_SHEET_HEADERS },
+    { name: REGISTER_TABS.RCM, headers: RCM_SHEET_HEADERS },
+    { name: REGISTER_TABS.GSTR2B, headers: STANDARD_SHEET_HEADERS }
+  ];
+
+  const results = {};
+  for (const t of tabs) {
+    const res = await sendToAppsScript({
+      action: 'upsert',
+      sheet: t.name,
+      headers: t.headers,
+      rows: []
+    });
+    results[t.name] = res.ok;
+  }
+  return results;
+}
+
+/**
+ * Upsert generic rows in chunks of 200 to specified sheet tab
+ */
+export async function upsertGenericRows({ sheet, headers, rows }) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { ok: true, count: 0 };
+  }
+
+  const targetSheet = sheet || REGISTER_TABS.GSTR1;
+  const targetHeaders = headers || getHeadersForTab(targetSheet);
+  const CHUNK_SIZE = 200;
+  let totalCount = 0;
+  let allOk = true;
+  let lastError = null;
+
+  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + CHUNK_SIZE);
+    const formattedRows = chunk.map((r) => mapRecordToSheetRow(r, targetSheet));
+
+    const payload = {
+      action: 'upsert',
+      sheet: targetSheet,
+      headers: targetHeaders,
+      rows: formattedRows
+    };
+
+    const result = await sendToAppsScript(payload);
+
+    if (result.skipped) {
+      return result;
+    }
+
+    if (!result.ok) {
+      allOk = false;
+      lastError = result.error || 'Failed to upsert chunk to Google Sheet';
+    } else {
+      totalCount += result.count || chunk.length;
+    }
+  }
+
+  return {
+    ok: allOk,
+    count: totalCount,
+    error: lastError
+  };
+}
+
+/**
+ * Backwards-compatible upsertRows (defaults to GSTR-1 if no sheet specified)
+ */
+export async function upsertRows(invoices, options = {}) {
+  const targetSheet = options.sheet || REGISTER_TABS.GSTR1;
+  const targetHeaders = options.headers || getHeadersForTab(targetSheet);
+
+  return await upsertGenericRows({
+    sheet: targetSheet,
+    headers: targetHeaders,
+    rows: invoices
+  });
+}
+
+/**
+ * Delete rows by IDs from specified sheet tab
+ */
+export async function deleteRows(ids, options = {}) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { ok: true, count: 0 };
+  }
+
+  const targetSheet = options.sheet || REGISTER_TABS.GSTR1;
+  const payload = {
+    action: 'delete',
+    sheet: targetSheet,
+    ids
+  };
+
+  return await sendToAppsScript(payload);
+}
+
+/**
+ * Lock sheet tab rows
+ */
+export async function lockSheet(ids, options = {}) {
+  const targetSheet = options.sheet || REGISTER_TABS.GSTR1;
+  const payload = {
+    action: 'lock',
+    sheet: targetSheet,
+    ids: Array.isArray(ids) ? ids : []
+  };
+
+  return await sendToAppsScript(payload);
+}
+
+/**
+ * Unlock sheet tab rows
+ */
+export async function unlockSheet(ids, options = {}) {
+  const targetSheet = options.sheet || REGISTER_TABS.GSTR1;
+  const payload = {
+    action: 'unlock',
+    sheet: targetSheet,
+    ids: Array.isArray(ids) ? ids : []
+  };
+
+  return await sendToAppsScript(payload);
+}
+
+/**
+ * Clear sheet tab rows below header
+ */
+export async function clearSheet(options = {}) {
+  const targetSheet = options.sheet || REGISTER_TABS.GSTR1;
+  const payload = {
+    action: 'clear',
+    sheet: targetSheet
+  };
+
+  return await sendToAppsScript(payload);
+}
+
+/**
+ * Shift any g2b-... rows from GSTR-1 to GSTR-2B tab
+ */
+export async function shiftG2bFromGstr1(knownG2bRows = []) {
+  // If knownG2bRows provided, upsert them to GSTR-2B and delete from GSTR-1
+  if (Array.isArray(knownG2bRows) && knownG2bRows.length > 0) {
+    const upsertRes = await upsertGenericRows({
+      sheet: REGISTER_TABS.GSTR2B,
+      rows: knownG2bRows
+    });
+    const deleteRes = await deleteRows(knownG2bRows.map(r => r.id), {
+      sheet: REGISTER_TABS.GSTR1
+    });
+    return {
+      ok: Boolean(upsertRes.ok && deleteRes.ok),
+      shiftedCount: knownG2bRows.length
+    };
+  }
+
+  // Also call shiftG2b action on Apps Script if supported
+  const scriptRes = await sendToAppsScript({
+    action: 'shiftG2b'
+  });
+  return scriptRes;
+}
+
+export default {
+  STANDARD_SHEET_HEADERS,
+  RCM_SHEET_HEADERS,
+  REGISTER_TABS,
+  getHeadersForTab,
+  mapRecordToSheetRow,
+  mapInvoiceToSheetRow,
+  ensureAllTabs,
+  upsertRows,
+  upsertGenericRows,
+  deleteRows,
+  lockSheet,
+  unlockSheet,
+  clearSheet,
+  shiftG2bFromGstr1
+};

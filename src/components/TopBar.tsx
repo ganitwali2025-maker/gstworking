@@ -1,33 +1,23 @@
-import React from 'react';
 import { ViewType } from '../types/gst';
-import { FYS } from '../utils/gstFormat';
 
 interface TopBarProps {
   view: ViewType;
   setView: (view: ViewType) => void;
-  fy: string;
-  setFy: (fy: string) => void;
+  fy?: string;
+  setFy?: (fy: string) => void;
   onLogout: () => void;
   onToggleSidebar?: () => void;
   isSidebarCollapsed?: boolean;
+  showToast?: (msg: string) => void;
 }
 
 export default function TopBar({
   view,
   setView,
-  fy,
-  setFy,
   onLogout,
   onToggleSidebar,
   isSidebarCollapsed
 }: TopBarProps) {
-  const todayStr = new Date().toLocaleDateString('en-IN', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  });
-
   return (
     <div className="top">
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
