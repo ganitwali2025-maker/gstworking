@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { updateQueryParams } from '../utils/router';
+import { normalizeFy } from '../services/registerService';
 
 export const MONTH_OPTIONS = [
   { value: 'ALL', label: 'All Months' },
@@ -97,6 +98,24 @@ export default function HeadingTemplate({
 }: HeadingTemplateProps) {
   const allFyOptions = Array.from(new Set(['FY 2026–27', 'FY 2025–26', ...(fyOptions || [])]));
 
+  const selectedFyValue = useMemo(() => {
+    if (!fy || fy.toUpperCase() === 'ALL') return 'ALL';
+    const clean = fy.trim();
+    const matched = allFyOptions.find(
+      (opt) => opt.toLowerCase() === clean.toLowerCase() || normalizeFy(opt) === normalizeFy(clean)
+    );
+    return matched || clean;
+  }, [fy, allFyOptions]);
+
+  const selectedMonthValue = useMemo(() => {
+    if (!month || month.toUpperCase() === 'ALL') return 'ALL';
+    const clean = month.trim().toLowerCase();
+    const matched = MONTH_OPTIONS.find(
+      (m) => m.value.toLowerCase() === clean || m.label.toLowerCase() === clean || clean.startsWith(m.value.toLowerCase())
+    );
+    return matched ? matched.value : clean;
+  }, [month]);
+
   return (
     <div className={`heading-template-wrapper ${className}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
       {/* Optional Search Bar when used in sheets or header */}
@@ -122,7 +141,7 @@ export default function HeadingTemplate({
           <span className="gstr1-select-label">FY:</span>
           <select
             className="gstr1-select-field"
-            value={fy || 'ALL'}
+            value={selectedFyValue}
             onChange={(e) => {
               const val = e.target.value;
               if (setFy) setFy(val);
@@ -149,7 +168,7 @@ export default function HeadingTemplate({
           <span className="gstr1-select-label">Month:</span>
           <select
             className="gstr1-select-field"
-            value={month || 'ALL'}
+            value={selectedMonthValue}
             onChange={(e) => {
               const val = e.target.value;
               if (setMonth) setMonth(val);

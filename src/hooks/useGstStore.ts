@@ -82,7 +82,15 @@ export function useGstStore() {
       }
       const q = getQueryParams();
       if (q.fy) setFyState(q.fy);
+      else {
+        const saved = localStorage.getItem('gst_active_fy');
+        if (saved) setFyState(saved);
+      }
       if (q.month) setMonthState(q.month);
+      else {
+        const saved = localStorage.getItem('gst_active_month');
+        if (saved) setMonthState(saved);
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
