@@ -75,7 +75,7 @@ export default function App() {
           showToast={showToast}
         />
 
-        <div className="scroll">
+        <div className={`scroll ${view === 'rec' ? 'scroll-rec' : ''}`}>
           <RegisterPeriodBar view={view} />
 
           {view === 'itc' && (

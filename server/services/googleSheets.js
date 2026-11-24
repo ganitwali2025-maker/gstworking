@@ -571,13 +571,31 @@ export function mapSheetRowToRecord(values, tabName = 'GSTR-1') {
     const totalTaxRupees = Number(values[12]) || (igstRupees + cgstRupees + sgstRupees);
     invValRupees = Number(values[13]) || (taxableRupees + totalTaxRupees);
   } else if (tabName === REGISTER_TABS.ITC_PURCHASE) {
-    taxableRupees = Number(values[8]) || 0;
-    igstRupees = Number(values[9]) || 0;
-    cgstRupees = Number(values[10]) || 0;
-    sgstRupees = Number(values[11]) || 0;
-    cessRupees = Number(values[12]) || 0;
-    const totalTaxRupees = Number(values[13]) || (igstRupees + cgstRupees + sgstRupees + cessRupees);
-    invValRupees = Number(values[14]) || (taxableRupees + totalTaxRupees);
+    const val8 = Number(values[8]) || 0;
+    const val9 = Number(values[9]) || 0;
+    const val10 = Number(values[10]) || 0;
+    const val11 = Number(values[11]) || 0;
+    const val12 = Number(values[12]) || 0;
+    const val13 = Number(values[13]) || 0;
+
+    if (Math.abs(val8) >= Math.abs(val9) && Math.abs(val8 - (val9 + val10 + val11 + val12)) < 5 && (val10 !== 0 || val11 !== 0 || val12 !== 0)) {
+      // Standard format: [8] Invoice Value, [9] Taxable Value, [10] IGST, [11] CGST, [12] SGST, [13] Cess
+      invValRupees = val8;
+      taxableRupees = val9;
+      igstRupees = val10;
+      cgstRupees = val11;
+      sgstRupees = val12;
+      cessRupees = val13;
+    } else {
+      // Reordered format: [8] Taxable Value, [9] IGST, [10] CGST, [11] SGST, [12] Cess, [13] Total Tax, [14] Total Invoice Value
+      taxableRupees = val8;
+      igstRupees = val9;
+      cgstRupees = val10;
+      sgstRupees = val11;
+      cessRupees = val12;
+      const totalTaxRupees = Number(values[13]) || (igstRupees + cgstRupees + sgstRupees + cessRupees);
+      invValRupees = Number(values[14]) || (taxableRupees + totalTaxRupees);
+    }
   } else {
     invValRupees = Number(values[8]) || 0;
     taxableRupees = Number(values[9]) || 0;

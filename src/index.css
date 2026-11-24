@@ -15,9 +15,12 @@
   --warn: #C2410C;
 }
 
-*, *:before, *:after {
+*,
+*:before,
+*:after {
   box-sizing: inherit;
 }
+
 /* =========================================================
    RECTANGULAR / AAYATAKAR CORNERS (border-radius: 0)
    Universal sharp square corners override across entire project
@@ -89,11 +92,16 @@ textarea,
 }
 
 
-html, body {
+html,
+body {
   height: 100%;
 }
 
-body, button, input, select, textarea {
+body,
+button,
+input,
+select,
+textarea {
   font-family: 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
@@ -108,7 +116,9 @@ body {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   font-family: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
   margin: 0;
   letter-spacing: -0.01em;
@@ -120,7 +130,9 @@ button {
   transition: all 0.15s ease-in-out;
 }
 
-button:focus-visible, select:focus-visible, input:focus-visible {
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
   outline: 3px solid var(--cash);
   outline-offset: 2px;
 }
@@ -398,6 +410,10 @@ select.chip {
   flex-direction: column;
 }
 
+.scroll.scroll-rec {
+  padding: 14px 10px 10px;
+}
+
 .banner {
   border-radius: 0;
   padding: 22px 24px;
@@ -580,13 +596,15 @@ table {
   min-width: 480px;
 }
 
-th, td {
+th,
+td {
   padding: 10px 8px;
   text-align: right;
   border-bottom: 1px solid var(--line);
 }
 
-th:first-child, td:first-child {
+th:first-child,
+td:first-child {
   text-align: left;
 }
 
@@ -1039,7 +1057,8 @@ tfoot td {
   background: #FFF1E8;
 }
 
-.tb button:disabled, .act2 button:disabled {
+.tb button:disabled,
+.act2 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -1083,7 +1102,8 @@ tfoot td {
   border-bottom: 1px solid var(--line);
 }
 
-.g1w th.tl, .g1w td.tl {
+.g1w th.tl,
+.g1w td.tl {
   text-align: left;
 }
 
@@ -1221,7 +1241,8 @@ tfoot td {
   margin-bottom: 5px;
 }
 
-.f input, .f select {
+.f input,
+.f select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line);
@@ -1278,8 +1299,15 @@ tfoot td {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translate(-50%, 10px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
 }
 
 .login {
@@ -1617,6 +1645,7 @@ tfoot td {
   background: #350B5E;
   color: #ffffff;
 }
+
 .btn-lock:hover:not(:disabled) {
   background: #250742;
 }
@@ -1625,6 +1654,7 @@ tfoot td {
   background: #ef4444;
   color: #ffffff;
 }
+
 .btn-clear:hover:not(:disabled) {
   background: #dc2626;
 }
@@ -1633,6 +1663,7 @@ tfoot td {
   background: #ea580c;
   color: #ffffff;
 }
+
 .btn-refresh:hover:not(:disabled) {
   background: #c2410c;
 }
@@ -1641,6 +1672,7 @@ tfoot td {
   background: #2563eb;
   color: #ffffff;
 }
+
 .btn-undo:hover:not(:disabled) {
   background: #1d4ed8;
 }
@@ -1649,6 +1681,7 @@ tfoot td {
   background: #0891b2;
   color: #ffffff;
 }
+
 .btn-redo:hover:not(:disabled) {
   background: #0e7490;
 }
@@ -1657,6 +1690,7 @@ tfoot td {
   background: #16a34a;
   color: #ffffff;
 }
+
 .btn-import:hover:not(:disabled) {
   background: #15803d;
 }
@@ -1665,6 +1699,7 @@ tfoot td {
   background: #0284c7;
   color: #ffffff;
 }
+
 .btn-sync-sheet:hover:not(:disabled) {
   background: #0369a1;
 }
@@ -1674,6 +1709,7 @@ tfoot td {
   color: #350B5E;
   border: 1px solid #350B5E;
 }
+
 .btn-add:hover:not(:disabled) {
   background: #f3e8ff;
 }
@@ -1683,6 +1719,7 @@ tfoot td {
   color: #4b5563;
   border: 1px solid #d1d5db;
 }
+
 .btn-export:hover:not(:disabled) {
   background: #f9fafb;
 }
@@ -1779,7 +1816,8 @@ tfoot td {
   color: #350b5e;
 }
 
-.row-edit-btn, .row-delete-btn {
+.row-edit-btn,
+.row-delete-btn {
   padding: 3px 8px;
   border-radius: 0;
   font-size: 11.5px;
@@ -1795,6 +1833,7 @@ tfoot td {
   border-color: #d8b4fe;
   margin-right: 5px;
 }
+
 .row-edit-btn:hover:not(:disabled) {
   background: #350B5E;
   color: #ffffff;
@@ -1805,13 +1844,16 @@ tfoot td {
   color: #dc2626;
   border-color: #fca5a5;
 }
+
 .row-delete-btn:hover:not(:disabled) {
   background: #dc2626;
   color: #ffffff;
 }
 
 @media(max-width: 900px) {
-  .two, .form {
+
+  .two,
+  .form {
     grid-template-columns: 1fr;
   }
 }
@@ -1821,6 +1863,7 @@ tfoot td {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
   }
+
   aside {
     flex-direction: row;
     overflow-x: auto;
@@ -1828,17 +1871,21 @@ tfoot td {
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
+
   .brand {
     display: none;
   }
+
   .nav {
     width: auto;
     white-space: nowrap;
     padding: 10px 12px;
   }
+
   .top {
     padding: 10px 14px;
   }
+
   .scroll {
     padding: 14px 14px 40px;
   }
@@ -2088,10 +2135,11 @@ tfoot td {
 }
 
 .reco-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  text-align: center;
+  min-width: 1895px !important;
+  width: 1895px !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: 13px !important;
 }
 
 .reco-table thead tr {
@@ -2100,8 +2148,8 @@ tfoot td {
 
 .reco-table thead th {
   color: #ffffff;
-  padding: 12px 14px;
-  font-size: 11.5px;
+  padding: 6px 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -2139,7 +2187,7 @@ tfoot td {
 .reco-table td.reco-inv-no {
   font-weight: 600;
   color: #350B5E;
-  text-align: left;
+  text-align: center;
 }
 
 .reco-table th.col-party,
@@ -2148,7 +2196,7 @@ tfoot td {
   max-width: 250px;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: left;
+  text-align: center;
 }
 
 .reco-gstin {
@@ -2172,6 +2220,7 @@ tfoot td {
   font-weight: 600;
   white-space: nowrap;
 }
+
 
 .pill-not-in-2b {
   background: #FEE2E2;
@@ -2224,6 +2273,7 @@ tfoot td {
 .reco-btn-view {
   color: #6366F1;
 }
+
 .reco-btn-view:hover {
   background: #EEF2FF;
 }
@@ -2231,6 +2281,7 @@ tfoot td {
 .reco-btn-edit {
   color: #3B82F6;
 }
+
 .reco-btn-edit:hover {
   background: #EFF6FF;
 }
@@ -2325,7 +2376,7 @@ tfoot td {
   margin-bottom: 12px;
 }
 
-.reco-form-row > div {
+.reco-form-row>div {
   flex: 1;
 }
 
@@ -2387,7 +2438,7 @@ tfoot td {
   max-width: 760px !important;
   width: 95% !important;
   max-height: 88vh !important;
-  border-radius: 0!important;
+  border-radius: 0 !important;
   padding: 18px 22px !important;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
   display: flex;
@@ -2416,6 +2467,7 @@ tfoot td {
   justify-content: center;
   transition: all 0.15s ease;
 }
+
 .import-close-btn:hover {
   background: #e2e8f0;
   color: #0f172a;
@@ -2451,9 +2503,11 @@ tfoot td {
   outline: none;
   transition: border-color 0.15s ease;
 }
+
 .import-dropdown-field select:focus {
   border-color: #350B5E;
 }
+
 .import-dropdown-field select:disabled {
   background-color: #f1f5f9;
   color: #94a3b8;
@@ -2469,6 +2523,7 @@ tfoot td {
   font-size: 12px;
   margin-bottom: 8px;
 }
+
 .alert-warning {
   background-color: #fffbeb;
   border: 1px solid #fde68a;
@@ -2489,6 +2544,7 @@ tfoot td {
   gap: 5px;
   margin-top: 4px;
 }
+
 .import-columns-tags span {
   background: #EDE9FE;
   color: #4C1D95;
@@ -2509,6 +2565,7 @@ tfoot td {
   cursor: pointer;
   color: #475569;
 }
+
 .import-mini-btn:hover {
   background: #e2e8f0;
   color: #0f172a;
@@ -2527,6 +2584,7 @@ tfoot td {
   resize: vertical;
   line-height: 1.45;
 }
+
 .import-textarea:focus {
   border-color: #350B5E;
 }
@@ -2566,18 +2624,22 @@ tfoot td {
   font-size: 11px;
   font-weight: 600;
 }
+
 .import-badge-success {
   background: #dcfce7;
   color: #15803d;
 }
+
 .import-badge-warning {
   background: #fef3c7;
   color: #b45309;
 }
+
 .import-badge-danger {
   background: #fee2e2;
   color: #b91c1c;
 }
+
 .import-badge-info {
   background: #e0f2fe;
   color: #0369a1;
@@ -2624,18 +2686,22 @@ tfoot td {
   font-weight: 600;
   white-space: nowrap;
 }
+
 .pill-valid {
   background: #dcfce7;
   color: #166534;
 }
+
 .pill-invalid {
   background: #fee2e2;
   color: #991b1b;
 }
+
 .pill-duplicate {
   background: #fef3c7;
   color: #92400e;
 }
+
 .pill-tax-mismatch {
   background: #ffedd5;
   color: #9a3412;
@@ -2644,10 +2710,12 @@ tfoot td {
 .row-invalid {
   background-color: #fff1f2 !important;
 }
+
 .row-duplicate {
   background-color: #fffbeb !important;
   opacity: 0.8;
 }
+
 .row-tax-warn {
   background-color: #fefce8 !important;
 }
@@ -2674,6 +2742,7 @@ tfoot td {
   cursor: pointer;
   transition: all 0.15s ease;
 }
+
 .import-btn-cancel:hover {
   background: #f1f5f9;
   color: #0f172a;
@@ -2691,9 +2760,11 @@ tfoot td {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   transition: all 0.15s ease;
 }
+
 .import-btn-submit:hover:not(:disabled) {
   background: #15803d;
 }
+
 .import-btn-submit:disabled {
   background: #94a3b8;
   cursor: not-allowed;
@@ -2705,4 +2776,540 @@ tfoot td {
     grid-template-columns: 1fr;
     gap: 10px;
   }
+}
+
+/* ============================================================= */
+/* BOOKS RECONCILIATION WITH GSTR-2B STYLES                      */
+/* ============================================================= */
+
+.reco-page-container {
+  padding: 0;
+  max-width: 100%;
+}
+
+/* 6 Summary Cards Grid */
+.reco-kpis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.reco-kpi-card {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 0 !important;
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  min-height: 70px;
+}
+
+.reco-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.active-reco-kpi {
+  border-color: #350b5e !important;
+  box-shadow: 0 0 0 2px rgba(53, 11, 94, 0.25) !important;
+  background: #FAF8FE !important;
+}
+
+.reco-kpi-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.reco-kpi-count {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 5px 0 2px 0;
+}
+
+.reco-kpi-amount {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+/* Card Container & Header */
+.reco-card {
+  border-radius: 0 !important;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.reco-header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #edf2f7;
+  background: #ffffff;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reco-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.reco-icon-badge {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  background: #FAF5FF;
+  border: 1px solid #E9D5FF;
+  color: #6B21A8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 !important;
+}
+
+.reco-badge-check {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 !important;
+}
+
+.reco-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e1b4b;
+  margin: 0 0 2px 0;
+}
+
+.reco-subtitle {
+  font-size: 11.5px;
+  color: #64748b;
+  margin: 0;
+}
+
+.reco-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-reco-action {
+  background: #350B5E;
+  color: #ffffff;
+  border: none;
+  border-radius: 0 !important;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.15s ease;
+  box-sizing: border-box;
+}
+
+.btn-reco-action:hover {
+  opacity: 0.92;
+}
+
+.btn-reco-cancel {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 0 !important;
+  padding: 0 12px;
+  height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+/* Toolbar & Filters */
+.reco-toolbar {
+  padding: 6px 12px;
+  background: #FAF8FE;
+  border-bottom: 1px solid #EBE4F3;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reco-toolbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reco-filter-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+}
+
+.reco-select-field {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 0 !important;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  background: #ffffff;
+  outline: none;
+}
+
+.reco-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 250px;
+}
+
+.reco-search-icon {
+  position: absolute;
+  left: 10px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.reco-search-input {
+  width: 100%;
+  padding: 0 28px 0 30px;
+  height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 0 !important;
+  font-size: 12px;
+  outline: none;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.reco-search-input:focus {
+  border-color: #350B5E;
+}
+
+.reco-search-clear {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+
+/* Table Wrapper & Group Headers */
+.reco-table-wrapper {
+  background: #ffffff;
+  border-radius: 0;
+  border: none;
+  overflow-x: auto;
+  box-shadow: none;
+  max-width: 100%;
+}
+
+.reco-group-th {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.reco-group-books {
+  background: #2b0850 !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  border-right: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.reco-group-g2b {
+  background: #190f40 !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  border-right: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.reco-group-diff {
+  background: #1e293b !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  border-right: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.reco-subhead-tr th {
+  background: #350B5E !important;
+  font-size: 10.5px !important;
+  padding: 8px 10px !important;
+  letter-spacing: 0.04em;
+}
+
+/* Status Pills (Exact Colors as Prompt) */
+/* Matched: Hara (Green) */
+.pill-matched {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border: 1px solid #86efac;
+}
+
+/* Not Match: Laal (Red) */
+.pill-not-match {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+  border: 1px solid #fca5a5;
+}
+
+/* Not in GSTR-2B: Peela (Amber/Yellow) */
+.pill-not-in-2b {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+  border: 1px solid #fcd34d;
+}
+
+/* Not in Purchase Register: Neela (Blue) */
+.pill-not-in-book {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+  border: 1px solid #93c5fd;
+}
+
+/* Debit Note: Orange */
+.pill-debit-note {
+  background: #ffedd5 !important;
+  color: #c2410c !important;
+  border: 1px solid #fdba74;
+}
+
+/* ITC Match Badges */
+.itc-match-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 0 !important;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: help;
+}
+
+.itc-match-badge.match-6 {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.itc-match-badge.match-partial {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.duplicate-warn-tag {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 12px;
+  cursor: help;
+}
+
+.audit-status-tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 0 !important;
+}
+
+.audit-status-tag.verified {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.audit-status-tag.query {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+/* Buttons in Action Column */
+.btn-action-view {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 0 !important;
+  color: #334155;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+}
+
+.btn-action-view:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-action-audit {
+  background: #FAF5FF;
+  border: 1px solid #D8B4FE;
+  border-radius: 0 !important;
+  color: #6B21A8;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-action-audit:hover {
+  background: #F3E8FF;
+}
+
+.mini-match-pill {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 0 !important;
+}
+
+.mini-match-pill.match {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.mini-match-pill.mismatch {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* Sticky Column Background Layers */
+.reco-table thead th {
+  background: #350B5E;
+}
+
+.reco-table tbody td {
+  background: #ffffff;
+}
+
+.reco-table tbody tr:nth-child(even) td {
+  background: #FAF9FD;
+}
+
+.reco-table tbody tr:hover td {
+  background: #F3EEFA !important;
+}
+
+.reco-table tfoot td {
+  background: #F8FAFC;
+}
+
+
+.reco-table-wrapper {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  max-width: 100% !important;
+  display: block !important;
+  position: relative !important;
+  border: 1px solid #E2E8F0;
+  background: #ffffff;
+}
+
+.reco-table {
+  min-width: 1895px !important;
+  width: 1895px !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: 13px !important;
+}
+
+.reco-table th,
+.reco-table td {
+  box-sizing: border-box !important;
+}
+
+
+/* ============================================================= */
+/* GST COLUMNS LAVENDER STYLING (#F3EBFE)                         */
+/* ============================================================= */
+
+/* All 10 GST Data Cells have uniform light lavender background across all rows (no zebra alternation) */
+.reco-table tbody td.reco-gst-cell,
+.reco-table tbody tr:nth-child(even) td.reco-gst-cell,
+.reco-table tbody tr:hover td.reco-gst-cell,
+.reco-table tfoot td.reco-gst-cell {
+  background: #F3EBFE !important;
+  color: #2A2161;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid #E6D9FA !important;
+}
+
+/* TOTAL Column: Bold #3C1A7A */
+.reco-table td.reco-total-cell {
+  color: #3C1A7A !important;
+  font-weight: 800 !important;
+}
+
+/* Patli safed vertical line Books aur 2B ke beech */
+.reco-books-divider {
+  border-right: 2px solid #ffffff !important;
+}
+
+/* Ensure headings stay identical uniform purple with crisp white borders & compact sleek height */
+.reco-table thead th {
+  padding: 6px 10px !important;
+  font-size: 11px !important;
+  line-height: 1.25 !important;
+  border-right: 1.5px solid #ffffff !important;
+  border-bottom: 1.5px solid #ffffff !important;
+  border-top: 1.5px solid #ffffff !important;
+}
+
+.reco-table thead tr:first-child th:first-child {
+  border-left: 1.5px solid #ffffff !important;
+}
+
+.reco-table thead th.reco-group-th {
+  padding: 5px 8px !important;
+  font-size: 11.5px !important;
+  letter-spacing: 0.06em !important;
+}
+
+.reco-table thead th.reco-group-books,
+.reco-table thead th.reco-group-g2b {
+  background: #350B5E !important;
+}
+
+.reco-table thead tr.reco-subhead-tr th {
+  background: #350B5E !important;
+  padding: 4px 6px !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
 }
