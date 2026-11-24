@@ -55,13 +55,14 @@ export function getPathForView(view: ViewType): string {
 /**
  * Reads query parameters from window.location.search
  */
-export function getQueryParams(): { fy?: string; month?: string } {
+export function getQueryParams(): { fy?: string; month?: string; tab?: string } {
   if (typeof window === 'undefined') return {};
   try {
     const params = new URLSearchParams(window.location.search);
     const fy = params.get('fy')?.trim() || undefined;
     const month = params.get('month')?.trim() || undefined;
-    return { fy, month };
+    const tab = params.get('tab')?.trim() || undefined;
+    return { fy, month, tab };
   } catch {
     return {};
   }
@@ -103,7 +104,7 @@ export function navigateTo(view: ViewType, fy?: string, month?: string, replace 
 /**
  * Update query params (fy, month) on current route without changing pathname
  */
-export function updateQueryParams(params: { fy?: string; month?: string }) {
+export function updateQueryParams(params: { fy?: string; month?: string; tab?: string }) {
   if (typeof window === 'undefined') return;
   try {
     const searchParams = new URLSearchParams(window.location.search);
@@ -121,6 +122,14 @@ export function updateQueryParams(params: { fy?: string; month?: string }) {
         searchParams.set('month', params.month);
       } else {
         searchParams.delete('month');
+      }
+    }
+
+    if (params.tab !== undefined) {
+      if (params.tab) {
+        searchParams.set('tab', params.tab);
+      } else {
+        searchParams.delete('tab');
       }
     }
 

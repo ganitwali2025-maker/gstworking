@@ -2162,290 +2162,45 @@ tfoot td {
   font-variant-numeric: tabular-nums;
 }
 
-/* Reconciliation Summary KPIs */
-.reco-kpis-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-@media (max-width: 1200px) {
-  .reco-kpis-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 640px) {
-  .reco-kpis-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-.reco-kpi-card {
-  background: #ffffff;
-  border: 1px solid var(--line);
-  border-radius: 0;
-  padding: 12px 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  display: flex;
-  flex-direction: column;
-  border-top: 3.5px solid #350b5e;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-
-.reco-kpi-card:hover, .reco-kpi-card.active-kpi {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
-}
-
-.reco-kpi-card.kpi-total { border-top-color: #350b5e; }
-.reco-kpi-card.kpi-matched { border-top-color: #16a34a; }
-.reco-kpi-card.kpi-not-match { border-top-color: #dc2626; }
-.reco-kpi-card.kpi-not-in-2b { border-top-color: #d97706; }
-.reco-kpi-card.kpi-not-in-book { border-top-color: #2563eb; }
-.reco-kpi-card.kpi-debit-note { border-top-color: #ea580c; }
-
-.reco-kpi-title {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin-bottom: 4px;
-}
-
-.reco-kpi-count {
-  font-size: 20px;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.2;
-}
-
-.reco-kpi-amount {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: #475569;
-  margin-top: 3px;
-}
-
-/* Toolbar (Filters & Search) */
-.reco-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 20px;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.reco-toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.reco-select-field {
-  padding: 7px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 0;
-  background: #ffffff;
-  font-size: 13px;
-  font-weight: 600;
-  color: #1e293b;
-  outline: none;
-  cursor: pointer;
-}
-
-.reco-select-field:focus {
-  border-color: #350b5e;
-}
-
-/* Group Headers in Table */
-.reco-group-th {
-  font-weight: 800 !important;
-  font-size: 12px !important;
-  letter-spacing: 0.06em !important;
-  padding: 9px 10px !important;
-}
-
-.reco-group-books {
-  background: #3b0764 !important;
-  border-right: 2px solid rgba(255, 255, 255, 0.25) !important;
-}
-
-.reco-group-g2b {
-  background: #1e1b4b !important;
-  border-right: 2px solid rgba(255, 255, 255, 0.25) !important;
-}
-
-.reco-group-diff {
-  background: #2e1065 !important;
-  border-right: 2px solid rgba(255, 255, 255, 0.25) !important;
-}
-
-.reco-subhead-tr {
-  background: #241a3d !important;
-}
-
-.reco-subhead-tr th {
-  padding: 8px 10px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
-}
-
 .reco-status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
+  gap: 6px;
+  padding: 3px 10px;
   border-radius: 0;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 11.5px;
+  font-weight: 600;
   white-space: nowrap;
-}
-
-/* User Status Rules:
-   Matched (hara), Not Match (laal), Not in GSTR-2B (peela), Not in Purchase Register (neela), Debit Note (orange) */
-.pill-matched {
-  background: #DCFCE7 !important;
-  color: #15803D !important;
-  border: 1px solid #86EFAC;
-}
-
-.pill-not-match {
-  background: #FEE2E2 !important;
-  color: #DC2626 !important;
-  border: 1px solid #FCA5A5;
 }
 
 .pill-not-in-2b {
-  background: #FEF3C7 !important;
-  color: #B45309 !important;
-  border: 1px solid #FDE68A;
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+.pill-not-match {
+  background: #FFE4E6;
+  color: #E11D48;
+}
+
+.pill-matched {
+  background: #DCFCE7;
+  color: #16A34A;
 }
 
 .pill-not-in-book {
-  background: #DBEAFE !important;
-  color: #1D4ED8 !important;
-  border: 1px solid #93C5FD;
+  background: #FEF3C7;
+  color: #D97706;
 }
 
 .pill-debit-note {
-  background: #FFEDD5 !important;
-  color: #C2410C !important;
-  border: 1px solid #FDBA74;
+  background: #E0E7FF;
+  color: #4338CA;
 }
 
 .reco-status-dot {
-  font-size: 8px;
+  font-size: 9px;
   line-height: 1;
-}
-
-/* ITC Match Badge */
-.itc-match-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2.5px 7px;
-  border-radius: 0;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.itc-match-badge.match-6 {
-  background: #DCFCE7;
-  color: #15803D;
-  border: 1px solid #86EFAC;
-}
-
-.itc-match-badge.match-partial {
-  background: #FEE2E2;
-  color: #DC2626;
-  border: 1px solid #FCA5A5;
-  cursor: help;
-}
-
-.itc-match-badge.match-none {
-  color: #94A3B8;
-  font-weight: 500;
-}
-
-/* Duplicate Month Warning */
-.duplicate-warn-tag {
-  display: inline-block;
-  margin-left: 3px;
-  font-size: 12px;
-  cursor: help;
-}
-
-/* Action Buttons */
-.btn-action-view {
-  padding: 4px 10px;
-  background: #f3e8ff;
-  color: #350b5e;
-  border: 1px solid #d8b4fe;
-  border-radius: 0;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 4px;
-  transition: all 0.15s ease;
-}
-
-.btn-action-view:hover {
-  background: #350b5e;
-  color: #ffffff;
-}
-
-.btn-action-audit {
-  padding: 4px 10px;
-  background: #f1f5f9;
-  color: #334155;
-  border: 1px solid #cbd5e1;
-  border-radius: 0;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.15s ease;
-}
-
-.btn-action-audit:hover {
-  background: #334155;
-  color: #ffffff;
-}
-
-.audit-status-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1.5px 5px;
-  border-radius: 0;
-  margin-left: 4px;
-}
-.audit-status-tag.verified {
-  background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #86efac;
-}
-.audit-status-tag.query {
-  background: #fee2e2;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
 }
 
 .reco-actions-col {
