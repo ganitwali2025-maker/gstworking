@@ -2787,6 +2787,33 @@ tfoot td {
   max-width: 100%;
 }
 
+.reco-integrity-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  border-radius: 0 !important;
+  font-weight: 600;
+}
+
+.reco-integrity-check strong {
+  font-weight: 800;
+}
+
+.reco-integrity-check.check-pass {
+  background: #F0FDF4;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+}
+
+.reco-integrity-check.check-fail {
+  background: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+  font-weight: 700;
+}
+
 /* 6 Summary Cards Grid */
 .reco-kpis-grid {
   display: grid;

@@ -307,6 +307,40 @@ export const cleanStr = (s?: string): string => (s || '').trim().toUpperCase().r
 
 export const cleanInv = (s?: string): string => (s || '').trim().toUpperCase().replace(/[\s\-_/]/g, '');
 
+export const parseRecordMonth = (item: any, defaultMonth: string = 'Oct'): string => {
+  const mRaw = (item.m || '').trim();
+  const dRaw = (item.d || item.date || '').trim();
+  let parsedMonth = mRaw;
+  let parsedYear = '2026';
+  if (item.fy) {
+    const fyMatch = String(item.fy).replace(/[^0-9]/g, '').slice(0, 4);
+    if (fyMatch) parsedYear = fyMatch;
+  } else if (dRaw) {
+    const yrMatch = dRaw.match(/\b(20\d\d)\b/);
+    if (yrMatch) parsedYear = yrMatch[1];
+  }
+  const MONTH_MAP: Record<string, string> = {
+    jan: 'Jan', january: 'Jan',
+    feb: 'Feb', february: 'Feb',
+    mar: 'Mar', march: 'Mar',
+    apr: 'Apr', april: 'Apr',
+    may: 'May',
+    jun: 'Jun', june: 'Jun',
+    jul: 'Jul', july: 'Jul',
+    aug: 'Aug', august: 'Aug',
+    sep: 'Sep', sept: 'Sep', september: 'Sep',
+    oct: 'Oct', october: 'Oct',
+    nov: 'Nov', november: 'Nov',
+    dec: 'Dec', december: 'Dec'
+  };
+  const mClean = parsedMonth.toLowerCase();
+  const stdMonth = MONTH_MAP[mClean] || (mClean ? mClean.charAt(0).toUpperCase() + mClean.slice(1, 3) : defaultMonth);
+  if (['Jan', 'Feb', 'Mar'].includes(stdMonth) && parsedYear === '2026') {
+    parsedYear = '2027';
+  }
+  return `${stdMonth}-${parsedYear}`;
+};
+
 export const formatAmount = (val: number): string => {
   if (isNaN(val) || val === null || val === undefined) return '0.00';
   const isNeg = val < 0;
@@ -388,12 +422,64 @@ interface ReconciliationViewProps {
 
 export default function ReconciliationView({
   showToast = () => { },
-  fy: _fy = '2026-27'
+  fy = 'FY 2026–27',
+  month
 }: ReconciliationViewProps) {
   // Filters & Search
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [monthFilter, setMonthFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Standard FY Months
+  const ALL_FY_MONTHS = useMemo(() => [
+    { value: 'Apr-2026', label: 'April-2026', short: 'Apr' },
+    { value: 'May-2026', label: 'May-2026', short: 'May' },
+    { value: 'Jun-2026', label: 'June-2026', short: 'Jun' },
+    { value: 'Jul-2026', label: 'July-2026', short: 'Jul' },
+    { value: 'Aug-2026', label: 'August-2026', short: 'Aug' },
+    { value: 'Sep-2026', label: 'September-2026', short: 'Sep' },
+    { value: 'Oct-2026', label: 'October-2026', short: 'Oct' },
+    { value: 'Nov-2026', label: 'November-2026', short: 'Nov' },
+    { value: 'Dec-2026', label: 'December-2026', short: 'Dec' },
+    { value: 'Jan-2027', label: 'January-2027', short: 'Jan' },
+    { value: 'Feb-2027', label: 'February-2027', short: 'Feb' },
+    { value: 'Mar-2027', label: 'March-2027', short: 'Mar' }
+  ], []);
+
+  // Working Month derived directly from TopBar HeadingTemplate props
+  const workingMonth = useMemo(() => {
+    let year = '2026';
+    if (fy) {
+      const match = fy.replace(/[^0-9]/g, '').slice(0, 4);
+      if (match) year = match;
+    }
+
+    let m = (month || '').trim();
+    if (!m || m.toUpperCase() === 'ALL') {
+      m = 'Oct';
+    }
+
+    const MONTH_MAP: Record<string, string> = {
+      jan: 'Jan', january: 'Jan',
+      feb: 'Feb', february: 'Feb',
+      mar: 'Mar', march: 'Mar',
+      apr: 'Apr', april: 'Apr',
+      may: 'May',
+      jun: 'Jun', june: 'Jun',
+      jul: 'Jul', july: 'Jul',
+      aug: 'Aug', august: 'Aug',
+      sep: 'Sep', sept: 'Sep', september: 'Sep',
+      oct: 'Oct', october: 'Oct',
+      nov: 'Nov', november: 'Nov',
+      dec: 'Dec', december: 'Dec'
+    };
+
+    const stdMonth = MONTH_MAP[m.toLowerCase()] || (m ? m.charAt(0).toUpperCase() + m.slice(1, 3) : 'Oct');
+    if (['Jan', 'Feb', 'Mar'].includes(stdMonth) && year === '2026') {
+      year = '2027';
+    }
+
+    return `${stdMonth}-${year}`;
+  }, [month, fy]);
 
   // Modals state
   const [viewingRecord, setViewingRecord] = useState<ReconciledInvoice | null>(null);
@@ -451,9 +537,7 @@ export default function ReconciliationView({
 
             const isPaise = Math.abs(rawTaxable) >= 100000;
 
-            const mStr = item.m || 'Aug';
-            const fyYear = item.fy ? String(item.fy).replace(/[^0-9]/g, '').slice(0, 4) : '2026';
-            const monthFormatted = `${mStr}-${fyYear}`;
+            const monthFormatted = parseRecordMonth(item, 'Oct');
 
             return {
               id: item.id || `book-${idx}`,
@@ -488,9 +572,7 @@ export default function ReconciliationView({
             const rawSgst = typeof item.sgst === 'number' ? item.sgst : (typeof item.s === 'number' ? item.s : 0);
             const isPaise = Math.abs(rawTaxable) >= 100000;
 
-            const mStr = item.m || 'Aug';
-            const fyYear = item.fy ? String(item.fy).replace(/[^0-9]/g, '').slice(0, 4) : '2026';
-            const monthFormatted = `${mStr}-${fyYear}`;
+            const monthFormatted = parseRecordMonth(item, 'Oct');
 
             return {
               id: item.id || `g2b-${idx}`,
@@ -512,8 +594,23 @@ export default function ReconciliationView({
     return DEFAULT_GSTR2B;
   }, []);
 
+  // GSTR-2B Month Search Priority function:
+  // 1. Same working month = 0 (Highest)
+  // 2. Next/future months = 10 + distance
+  // 3. Previous/past months = 100 + distance
+  function getMonthPriority(targetM: string, currentM: string): number {
+    if (targetM === currentM) return 0;
+    const currIdx = ALL_FY_MONTHS.findIndex((m) => m.value === currentM);
+    const targetIdx = ALL_FY_MONTHS.findIndex((m) => m.value === targetM);
+    if (currIdx === -1 || targetIdx === -1) return 999;
+    if (targetIdx > currIdx) {
+      return 10 + (targetIdx - currIdx);
+    }
+    return 100 + (currIdx - targetIdx);
+  }
+
   // -------------------------------------------------------------
-  // Full Reconciliation Engine (Month Logic, 6 Fields, Duplicate)
+  // Full Reconciliation Engine (Books -> 2B Directional Matching)
   // -------------------------------------------------------------
   const reconciledInvoices = useMemo<ReconciledInvoice[]>(() => {
     const results: ReconciledInvoice[] = [];
@@ -530,11 +627,14 @@ export default function ReconciliationView({
       gstr2bInvMonthMap.set(key, existing);
     });
 
-    // Step 0: Separate Debit Note rows from Books (negative amounts)
+    // Step 0: Filter Books for ONLY the selected Working Month!
+    const workingBooks = booksRecords.filter((b) => b.month === workingMonth);
+
+    // Separate Debit Note rows from Books (negative amounts)
     const debitNoteBooks: RawBookRecord[] = [];
     const regularBooks: RawBookRecord[] = [];
 
-    booksRecords.forEach((b) => {
+    workingBooks.forEach((b) => {
       const isMinus = b.taxable < 0 || b.igst < 0 || b.cgst < 0 || b.sgst < 0;
       if (isMinus) {
         debitNoteBooks.push(b);
@@ -587,6 +687,14 @@ export default function ReconciliationView({
       });
     });
 
+    // Sort candidate GSTR-2B records by month search order:
+    // 1) Working month
+    // 2) Next/future months
+    // 3) Previous/past months
+    const sorted2bRecords = [...gstr2bRecords].sort(
+      (a, b) => getMonthPriority(a.month, workingMonth) - getMonthPriority(b.month, workingMonth)
+    );
+
     // Step 1: Exact Match on ALL 6 fields (Matched)
     const unpairedBooksStage1: RawBookRecord[] = [];
 
@@ -596,7 +704,7 @@ export default function ReconciliationView({
 
       let matched2b: Raw2bRecord | undefined;
 
-      for (const g of gstr2bRecords) {
+      for (const g of sorted2bRecords) {
         if (paired2bIds.has(g.id)) continue;
 
         const gGstinClean = cleanStr(g.gstin);
@@ -627,7 +735,7 @@ export default function ReconciliationView({
         results.push({
           id: b.id,
           status: 'Matched',
-          month2b: matched2b.month || 'Aug-2026',
+          month2b: matched2b.month || workingMonth,
           hasDuplicateMonth: hasDup,
           duplicateMonthsList: dupMonths,
           itcMatchText: '6/6 Match',
@@ -680,7 +788,7 @@ export default function ReconciliationView({
 
       let paired2b: Raw2bRecord | undefined;
 
-      for (const g of gstr2bRecords) {
+      for (const g of sorted2bRecords) {
         if (paired2bIds.has(g.id)) continue;
         if (bGstinClean === cleanStr(g.gstin) && bInvClean === cleanInv(g.invNo)) {
           paired2b = g;
@@ -704,7 +812,7 @@ export default function ReconciliationView({
 
       let paired2b: Raw2bRecord | undefined;
 
-      for (const g of gstr2bRecords) {
+      for (const g of sorted2bRecords) {
         if (paired2bIds.has(g.id)) continue;
         if (bGstinClean === cleanStr(g.gstin) && Math.abs(round2(b.taxable - g.taxable)) <= 1.00) {
           paired2b = g;
@@ -754,7 +862,7 @@ export default function ReconciliationView({
       results.push({
         id: b.id,
         status: 'Not Match',
-        month2b: g.month || 'Aug-2026',
+        month2b: g.month || workingMonth,
         hasDuplicateMonth: hasDup,
         duplicateMonthsList: dupMonths,
         itcMatchText: `${matchCount}/6 Match`,
@@ -839,16 +947,16 @@ export default function ReconciliationView({
       });
     });
 
-    // Step 5: Unpaired GSTR-2B Records -> "Not in Purchase Register"
+    // Step 5: Unpaired GSTR-2B Records for WORKING MONTH ONLY -> "Not in Purchase Register"
     gstr2bRecords.forEach((g) => {
-      if (!paired2bIds.has(g.id)) {
+      if (g.month === workingMonth && !paired2bIds.has(g.id)) {
         const gTotal = round2(g.taxable + g.igst + g.cgst + g.sgst);
         const audit = auditNotes[g.id] || auditNotes[`${cleanStr(g.gstin)}_${cleanInv(g.invNo)}`];
 
         results.push({
           id: g.id,
           status: 'Not in Purchase Register',
-          month2b: g.month || 'Aug-2026',
+          month2b: g.month || workingMonth,
           hasDuplicateMonth: false,
           itcMatchText: '-',
           itcMatchCount: 0,
@@ -890,29 +998,22 @@ export default function ReconciliationView({
     });
 
     return results;
-  }, [booksRecords, gstr2bRecords, auditNotes]);
+  }, [booksRecords, gstr2bRecords, workingMonth, auditNotes]);
 
-  // Distinct Months list for month filter dropdown
-  const availableMonths = useMemo(() => {
-    const set = new Set<string>();
-    reconciledInvoices.forEach((r) => {
-      if (r.month2b && r.month2b !== '-') set.add(r.month2b);
-    });
-    return Array.from(set).sort();
-  }, [reconciledInvoices]);
+  // Working Month Books Count (for verification check)
+  const booksCount = useMemo(() => {
+    return booksRecords.filter((b) => b.month === workingMonth).length;
+  }, [booksRecords, workingMonth]);
 
   // -------------------------------------------------------------
   // Filtered Display List
   // -------------------------------------------------------------
   const filteredRecords = useMemo(() => {
     return reconciledInvoices.filter((r) => {
-      // Status filter
-      if (statusFilter !== 'ALL' && r.status !== statusFilter) {
-        return false;
-      }
-
-      // Month filter
-      if (monthFilter !== 'ALL' && r.month2b !== monthFilter) {
+      // If statusFilter is 'ALL', show all working month Books invoices (excluding 'Not in Purchase Register')
+      if (statusFilter === 'ALL') {
+        if (r.status === 'Not in Purchase Register') return false;
+      } else if (r.status !== statusFilter) {
         return false;
       }
 
@@ -929,14 +1030,16 @@ export default function ReconciliationView({
 
       return true;
     });
-  }, [reconciledInvoices, statusFilter, monthFilter, searchQuery]);
+  }, [reconciledInvoices, statusFilter, searchQuery]);
 
   // -------------------------------------------------------------
   // Summary KPIs (6 Cards)
   // -------------------------------------------------------------
   const summaryKpis = useMemo(() => {
-    const totalCount = reconciledInvoices.length;
-    const totalItc = reconciledInvoices.reduce((acc, r) => acc + (r.bIgst + r.bCgst + r.bSgst), 0);
+    // Only Books invoices (Matched, Not Match, Not in GSTR-2B, Debit Note) make up Total Invoices
+    const booksInvoices = reconciledInvoices.filter((r) => r.status !== 'Not in Purchase Register');
+    const totalCount = booksInvoices.length;
+    const totalItc = booksInvoices.reduce((acc, r) => acc + (r.bIgst + r.bCgst + r.bSgst), 0);
 
     const matchedList = reconciledInvoices.filter((r) => r.status === 'Matched');
     const matchedCount = matchedList.length;
@@ -950,6 +1053,7 @@ export default function ReconciliationView({
     const notIn2bCount = notIn2bList.length;
     const notIn2bItc = notIn2bList.reduce((acc, r) => acc + (r.bIgst + r.bCgst + r.bSgst), 0);
 
+    // ONLY working month unpaired 2B records
     const notInBookList = reconciledInvoices.filter((r) => r.status === 'Not in Purchase Register');
     const notInBookCount = notInBookList.length;
     const notInBookItc = notInBookList.reduce((acc, r) => acc + (r.gIgst + r.gCgst + r.gSgst), 0);
@@ -973,6 +1077,12 @@ export default function ReconciliationView({
       debitNoteItc
     };
   }, [reconciledInvoices]);
+
+  // Verification Check: Total Invoices = Matched + Not Match + Not in 2B + Debit Note = Books Count
+  const isCheckPassed = useMemo(() => {
+    const sum = summaryKpis.matchedCount + summaryKpis.notMatchCount + summaryKpis.notIn2bCount + summaryKpis.debitNoteCount;
+    return sum === booksCount && summaryKpis.totalCount === booksCount;
+  }, [summaryKpis, booksCount]);
 
   // -------------------------------------------------------------
   // Table Totals across filtered records
@@ -1179,7 +1289,7 @@ export default function ReconciliationView({
                 Books Reconciliation <span style={{ fontWeight: 400, color: '#64748b' }}>with GSTR-2B</span>
               </h1>
               <p className="reco-subtitle">
-                Systematic 6-field invoice verification between Purchase Books & GSTR-2B across all return periods
+                Systematic 6-field invoice verification between Purchase Books & GSTR-2B across all return periods ({workingMonth})
               </p>
             </div>
           </div>
