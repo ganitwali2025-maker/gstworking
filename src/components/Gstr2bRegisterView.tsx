@@ -4,6 +4,8 @@ import { updateQueryParams } from '../utils/router';
 import { syncModuleToSheets } from '../services/sheetSync';
 import Gstr2bImportModal from './Gstr2bImportModal';
 import { HeadingSearchBar } from './HeadingTemplate';
+import defaultRegisters from '../data/defaultRegisters.json';
+import { cleanStr, cleanInv, parseRecordMonth } from '../services/recoSyncService';
 import {
   REGISTER_TABS,
   STANDARD_SHEET_HEADERS,
@@ -13,6 +15,22 @@ import {
   clearRegisterRows,
   mapRowToSheetRow
 } from '../services/registerService';
+
+const ALL_FY_MONTH_ORDER = [
+  'Apr-2026', 'May-2026', 'Jun-2026', 'Jul-2026', 'Aug-2026', 'Sep-2026',
+  'Oct-2026', 'Nov-2026', 'Dec-2026', 'Jan-2027', 'Feb-2027', 'Mar-2027'
+];
+
+function determineClaimMonth(booksMonth: string, g2bMonth: string): string {
+  const bIdx = ALL_FY_MONTH_ORDER.indexOf(booksMonth);
+  const gIdx = ALL_FY_MONTH_ORDER.indexOf(g2bMonth);
+  if (bIdx !== -1 && gIdx !== -1) {
+    // Edge case: if Books month is earlier than GSTR-2B month,
+    // show GSTR-2B month as claim month because ITC cannot be claimed before 2B
+    return bIdx < gIdx ? g2bMonth : booksMonth;
+  }
+  return booksMonth || g2bMonth;
+}
 
 export interface Gstr2bRecord {
   id: string;
@@ -235,6 +253,104 @@ export default function Gstr2bRegisterView({
       window.removeEventListener('register-synced', handleSynced);
     };
   }, []);
+
+  // Live Books records for ITC Claim status
+  const [booksRecords, setBooksRecords] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem('itc_register_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return Array.isArray((defaultRegisters as any)?.itc) ? (defaultRegisters as any).itc : [];
+  });
+
+  // Persistent claimed map: once an invoice is claimed, keep it as Claimed
+  const [claimedMap, setClaimedMap] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('gst_2b_claimed_cache_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Listen to live data updates across tabs without page refresh
+  useEffect(() => {
+    const reloadBooks = () => {
+      try {
+        const raw = localStorage.getItem('itc_register_v1');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setBooksRecords(parsed);
+            return;
+          }
+        }
+      } catch {}
+      if (Array.isArray((defaultRegisters as any)?.itc)) {
+        setBooksRecords((defaultRegisters as any).itc);
+      }
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === 'itc_register_v1' || e.key === 'gst_reco_active_data_v1' || e.key === 'gst_reco_audit_v1') {
+        reloadBooks();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('register-synced', reloadBooks);
+    window.addEventListener('reco-data-updated', reloadBooks);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('register-synced', reloadBooks);
+      window.removeEventListener('reco-data-updated', reloadBooks);
+    };
+  }, []);
+
+  // Compute live claim status map for GSTR-2B invoices
+  const booksClaimLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    booksRecords.forEach((b: any) => {
+      const gstin = cleanStr(b.gstin || b.g);
+      const invNo = cleanInv(b.invNo || b.n);
+      if (gstin && invNo) {
+        const key = `${gstin}_${invNo}`;
+        const bMonth = parseRecordMonth(b, 'Oct');
+        if (!map.has(key)) {
+          map.set(key, bMonth);
+        }
+      }
+    });
+    return map;
+  }, [booksRecords]);
+
+  // Update persistent claimed cache whenever new books matches are found
+  useEffect(() => {
+    let hasNew = false;
+    const updated = { ...claimedMap };
+    records.forEach((r) => {
+      const key = `${cleanStr(r.gstin)}_${cleanInv(r.invNo)}`;
+      const bMonth = booksClaimLookup.get(key);
+      if (bMonth) {
+        const g2bMonth = parseRecordMonth(r, 'Oct');
+        const finalClaimMonth = determineClaimMonth(bMonth, g2bMonth);
+        if (!updated[key] || updated[key] !== finalClaimMonth) {
+          updated[key] = finalClaimMonth;
+          hasNew = true;
+        }
+      }
+    });
+    if (hasNew) {
+      setClaimedMap(updated);
+      try {
+        localStorage.setItem('gst_2b_claimed_cache_v1', JSON.stringify(updated));
+      } catch {}
+    }
+  }, [booksClaimLookup, records]);
 
   // Step 4: Filter display records strictly by selected FY, Month and Search Query
   const displayRecords = useMemo(() => {
@@ -694,13 +810,18 @@ export default function Gstr2bRegisterView({
                 <th style={{ textAlign: 'center' }}>SGST</th>
                 <th style={{ textAlign: 'center' }}>CESS</th>
                 <th style={{ textAlign: 'center' }}>TOTAL TAX</th>
-                <th style={{ textAlign: 'center' }}>ACTION</th>
+                <th style={{ textAlign: 'center', minWidth: '160px' }}>STATUS</th>
               </tr>
             </thead>
             <tbody>
               {displayRecords.length > 0 ? (
                 displayRecords.map((r) => {
                   const totalTax = (r.igst || 0) + (r.cgst || 0) + (r.sgst || 0) + (r.cess || 0);
+                  const key = `${cleanStr(r.gstin)}_${cleanInv(r.invNo)}`;
+                  const bMonth = booksClaimLookup.get(key);
+                  const g2bMonth = parseRecordMonth(r, 'Oct');
+                  const claimMonth = bMonth ? determineClaimMonth(bMonth, g2bMonth) : claimedMap[key];
+                  const isClaimed = Boolean(claimMonth);
 
                   return (
                     <tr key={r.id}>
@@ -734,25 +855,40 @@ export default function Gstr2bRegisterView({
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.sgst)}</td>
                       <td className="num-val" style={{ textAlign: 'center' }}>{fmtVal(r.cess)}</td>
                       <td className="num-val total-tax" style={{ textAlign: 'center' }}>{fmtVal(totalTax)}</td>
-                      <td className="act-col" style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        <button
-                          type="button"
-                          disabled={isLocked}
-                          onClick={() => handleOpenEdit(r)}
-                          className="row-edit-btn"
-                          title="Edit record"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isLocked}
-                          onClick={() => handleDelete(r.id)}
-                          className="row-delete-btn"
-                          title="Delete record"
-                        >
-                          Delete
-                        </button>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        {isClaimed ? (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '3px 10px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              background: '#dcfce7',
+                              color: '#15803d',
+                              border: '1px solid #86efac',
+                              borderRadius: 0,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Claimed – {claimMonth}
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '3px 10px',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              background: '#fef2f2',
+                              color: '#b91c1c',
+                              border: '1px solid #fecaca',
+                              borderRadius: 0,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            Not Claimed
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
