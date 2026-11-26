@@ -76,7 +76,7 @@ export default function App() {
         />
 
         <div className={`scroll ${view === 'rec' ? 'scroll-rec' : ''}`}>
-          <RegisterPeriodBar view={view} />
+          {view !== 'steps' && <RegisterPeriodBar view={view} />}
 
           {view === 'itc' && (
             <ItcDashboardView

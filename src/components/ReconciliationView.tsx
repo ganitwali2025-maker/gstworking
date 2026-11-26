@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { getQueryParams, updateQueryParams } from '../utils/router';
+import defaultRegisters from '../data/defaultRegisters.json';
+import { loadRegisterRows, REGISTER_TABS } from '../services/registerService';
 
 // ==========================================
 // Types & Interfaces
@@ -106,7 +108,7 @@ interface Raw2bRecord {
 // ==========================================
 // Default Seed Data (Demonstrates All Cases)
 // ==========================================
-const DEFAULT_BOOKS: RawBookRecord[] = [
+export const DEFAULT_BOOKS: RawBookRecord[] = [
   {
     id: 'b-1',
     date: '02/08/2026',
@@ -205,7 +207,7 @@ const DEFAULT_BOOKS: RawBookRecord[] = [
   }
 ];
 
-const DEFAULT_GSTR2B: Raw2bRecord[] = [
+export const DEFAULT_GSTR2B: Raw2bRecord[] = [
   // Exact Match for b-1 (Found in Aug-2026)
   {
     id: 'g-1',
@@ -372,11 +374,29 @@ export const renderGstAmount = (
     );
   }
 
+  // 0.00: subtle neutral grey
+  if (val === 0) {
+    return (
+      <span style={{ color: '#64748b', fontWeight: 600 }}>
+        0.00
+      </span>
+    );
+  }
+
   // Rs 1 tolerance comparison: val is current cell, otherVal is comparison side
   const diff = round2(val - otherVal);
   const hasDiff = Math.abs(diff) > 1.00;
 
   if (!hasDiff) {
+    return (
+      <span style={{ color: isTotal ? '#3C1A7A' : '#2A2161', fontWeight: isTotal ? 800 : 600 }}>
+        {formatted}
+      </span>
+    );
+  }
+
+  // If other side is zero or negative (e.g., missing invoice or debit note)
+  if (otherVal <= 0) {
     return (
       <span style={{ color: isTotal ? '#3C1A7A' : '#2A2161', fontWeight: isTotal ? 800 : 600 }}>
         {formatted}
@@ -481,11 +501,39 @@ export default function ReconciliationView({
     return `${stdMonth}-${year}`;
   }, [month, fy]);
 
+  // Refresh & Lock State
+  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
+  // Month-wise Lock state (persisted in localStorage)
+  const [locks, setLocks] = useState<Record<string, {
+    isLocked: boolean;
+    lockedAt: string;
+    lockedBy: string;
+    snapshot?: ReconciledInvoice[];
+  }>>(() => {
+    try {
+      const raw = localStorage.getItem('gst_reco_locks_v1');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const currentLock = locks[workingMonth];
+  const isLocked = Boolean(currentLock?.isLocked);
+
   // Modals state
   const [viewingRecord, setViewingRecord] = useState<ReconciledInvoice | null>(null);
   const [auditingRecord, setAuditingRecord] = useState<ReconciledInvoice | null>(null);
   const [auditFormStatus, setAuditFormStatus] = useState<AuditStatus>('Verified');
   const [auditFormNote, setAuditFormNote] = useState<string>('');
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Audit notes store
   const [auditNotes, setAuditNotes] = useState<Record<string, AuditEntry>>(() => {
@@ -497,7 +545,7 @@ export default function ReconciliationView({
     }
   });
 
-  // Sync tab navigation if redirected from WorkingStepsView
+  // Sync tab navigation if query params exist
   useEffect(() => {
     try {
       const q: { fy?: string; month?: string; tab?: string } = getQueryParams();
@@ -514,84 +562,120 @@ export default function ReconciliationView({
   // -------------------------------------------------------------
   const booksRecords = useMemo<RawBookRecord[]>(() => {
     try {
+      let rawList: any[] = [];
       const raw = localStorage.getItem('itc_register_v1');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item: any, idx: number) => {
-            let rawTaxable = typeof item.t === 'number' ? item.t : (typeof item.taxable === 'number' ? item.taxable : 0);
-            let rawIgst = typeof item.i === 'number' ? item.i : (typeof item.igst === 'number' ? item.igst : 0);
-            let rawCgst = typeof item.c === 'number' ? item.c : (typeof item.cgst === 'number' ? item.cgst : 0);
-            let rawSgst = typeof item.s === 'number' ? item.s : (typeof item.sgst === 'number' ? item.sgst : 0);
-            let rawCess = typeof item.cess === 'number' ? item.cess : 0;
-
-            // Intelligent unshift: if rawTaxable is actually Total Invoice Value (equals sum of taxes + taxable)
-            const sumShift = rawIgst + rawCgst + rawSgst + rawCess;
-            if (sumShift !== 0 && Math.abs(rawTaxable - sumShift) < 10) {
-              rawTaxable = rawIgst;
-              rawIgst = rawCgst;
-              rawCgst = rawSgst;
-              rawSgst = rawCess;
-              rawCess = 0;
-            }
-
-            const isPaise = Math.abs(rawTaxable) >= 100000;
-
-            const monthFormatted = parseRecordMonth(item, 'Oct');
-
-            return {
-              id: item.id || `book-${idx}`,
-              date: item.d || '',
-              invNo: item.invNo || item.n || '',
-              gstin: item.g || item.gstin || '',
-              supplierName: item.p || item.tradeName || item.party || '',
-              taxable: isPaise ? rawTaxable / 100 : rawTaxable,
-              igst: isPaise ? rawIgst / 100 : rawIgst,
-              cgst: isPaise ? rawCgst / 100 : rawCgst,
-              sgst: isPaise ? rawSgst / 100 : rawSgst,
-              cess: (rawCess || 0) / (isPaise ? 100 : 1),
-              month: monthFormatted
-            };
-          });
+          rawList = parsed;
         }
+      }
+      if (rawList.length === 0 && Array.isArray((defaultRegisters as any)?.itc)) {
+        rawList = (defaultRegisters as any).itc;
+      }
+
+      if (rawList.length > 0) {
+        return rawList.map((item: any, idx: number) => {
+          let rawTaxable = typeof item.t === 'number' ? item.t : (typeof item.taxable === 'number' ? item.taxable : 0);
+          let rawIgst = typeof item.i === 'number' ? item.i : (typeof item.igst === 'number' ? item.igst : 0);
+          let rawCgst = typeof item.c === 'number' ? item.c : (typeof item.cgst === 'number' ? item.cgst : 0);
+          let rawSgst = typeof item.s === 'number' ? item.s : (typeof item.sgst === 'number' ? item.sgst : 0);
+          let rawCess = typeof item.cess === 'number' ? item.cess : 0;
+
+          // Intelligent unshift: if rawTaxable is actually Total Invoice Value (equals sum of taxes + taxable)
+          const sumShift = rawIgst + rawCgst + rawSgst + rawCess;
+          if (sumShift !== 0 && Math.abs(rawTaxable - sumShift) < 10) {
+            rawTaxable = rawIgst;
+            rawIgst = rawCgst;
+            rawCgst = rawSgst;
+            rawSgst = rawCess;
+            rawCess = 0;
+          }
+
+          const isPaise = Math.abs(rawTaxable) >= 100000;
+          const monthFormatted = parseRecordMonth(item, 'Oct');
+
+          return {
+            id: item.id || `book-${idx}`,
+            date: item.d || '',
+            invNo: item.invNo || item.n || '',
+            gstin: item.g || item.gstin || '',
+            supplierName: item.p || item.tradeName || item.party || '',
+            taxable: isPaise ? rawTaxable / 100 : rawTaxable,
+            igst: isPaise ? rawIgst / 100 : rawIgst,
+            cgst: isPaise ? rawCgst / 100 : rawCgst,
+            sgst: isPaise ? rawSgst / 100 : rawSgst,
+            cess: (rawCess || 0) / (isPaise ? 100 : 1),
+            month: monthFormatted
+          };
+        });
       }
     } catch { }
     return DEFAULT_BOOKS;
-  }, []);
+  }, [refreshTrigger]);
 
   const gstr2bRecords = useMemo<Raw2bRecord[]>(() => {
     try {
+      let rawList: any[] = [];
       const raw = localStorage.getItem('gstr2b_register_v1');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item: any, idx: number) => {
-            const rawTaxable = typeof item.taxable === 'number' ? item.taxable : (typeof item.t === 'number' ? item.t : 0);
-            const rawIgst = typeof item.igst === 'number' ? item.igst : (typeof item.i === 'number' ? item.i : 0);
-            const rawCgst = typeof item.cgst === 'number' ? item.cgst : (typeof item.c === 'number' ? item.c : 0);
-            const rawSgst = typeof item.sgst === 'number' ? item.sgst : (typeof item.s === 'number' ? item.s : 0);
-            const isPaise = Math.abs(rawTaxable) >= 100000;
-
-            const monthFormatted = parseRecordMonth(item, 'Oct');
-
-            return {
-              id: item.id || `g2b-${idx}`,
-              date: item.d || '',
-              invNo: item.invNo || item.n || '',
-              gstin: item.gstin || item.g || '',
-              supplierName: item.tradeName || item.p || item.supplierName || '',
-              taxable: isPaise ? rawTaxable / 100 : rawTaxable,
-              igst: isPaise ? rawIgst / 100 : rawIgst,
-              cgst: isPaise ? rawCgst / 100 : rawCgst,
-              sgst: isPaise ? rawSgst / 100 : rawSgst,
-              cess: (item.cess || 0) / (isPaise ? 100 : 1),
-              month: monthFormatted
-            };
-          });
+          rawList = parsed;
         }
+      }
+      if (rawList.length === 0 && Array.isArray((defaultRegisters as any)?.g2b)) {
+        rawList = (defaultRegisters as any).g2b;
+      }
+
+      if (rawList.length > 0) {
+        return rawList.map((item: any, idx: number) => {
+          const rawTaxable = typeof item.taxable === 'number' ? item.taxable : (typeof item.t === 'number' ? item.t : 0);
+          const rawIgst = typeof item.igst === 'number' ? item.igst : (typeof item.i === 'number' ? item.i : 0);
+          const rawCgst = typeof item.cgst === 'number' ? item.cgst : (typeof item.c === 'number' ? item.c : 0);
+          const rawSgst = typeof item.sgst === 'number' ? item.sgst : (typeof item.s === 'number' ? item.s : 0);
+          const isPaise = Math.abs(rawTaxable) >= 100000;
+          const monthFormatted = parseRecordMonth(item, 'Oct');
+
+          return {
+            id: item.id || `g2b-${idx}`,
+            date: item.d || '',
+            invNo: item.invNo || item.n || '',
+            gstin: item.gstin || item.g || '',
+            supplierName: item.tradeName || item.p || item.supplierName || '',
+            taxable: isPaise ? rawTaxable / 100 : rawTaxable,
+            igst: isPaise ? rawIgst / 100 : rawIgst,
+            cgst: isPaise ? rawCgst / 100 : rawCgst,
+            sgst: isPaise ? rawSgst / 100 : rawSgst,
+            cess: (item.cess || 0) / (isPaise ? 100 : 1),
+            month: monthFormatted
+          };
+        });
       }
     } catch { }
     return DEFAULT_GSTR2B;
+  }, [refreshTrigger]);
+
+  // Initial mount: ensure fresh live data from server for Books & 2B
+  useEffect(() => {
+    let isMounted = true;
+    async function syncRegisters() {
+      try {
+        await Promise.all([
+          loadRegisterRows(REGISTER_TABS.ITC_PURCHASE),
+          loadRegisterRows(REGISTER_TABS.GSTR_2B)
+        ]);
+        if (isMounted) {
+          setRefreshTrigger((prev) => prev + 1);
+        }
+      } catch (err) {
+        console.warn('Live register sync note:', err);
+      }
+    }
+    syncRegisters();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // GSTR-2B Month Search Priority function:
@@ -612,7 +696,7 @@ export default function ReconciliationView({
   // -------------------------------------------------------------
   // Full Reconciliation Engine (Books -> 2B Directional Matching)
   // -------------------------------------------------------------
-  const reconciledInvoices = useMemo<ReconciledInvoice[]>(() => {
+  const computedInvoices = useMemo<ReconciledInvoice[]>(() => {
     const results: ReconciledInvoice[] = [];
     const paired2bIds = new Set<string>();
 
@@ -1000,10 +1084,21 @@ export default function ReconciliationView({
     return results;
   }, [booksRecords, gstr2bRecords, workingMonth, auditNotes]);
 
+  // If month is locked and snapshot exists, freeze matching result, status, amount:
+  const reconciledInvoices = useMemo<ReconciledInvoice[]>(() => {
+    if (isLocked && currentLock?.snapshot && currentLock.snapshot.length > 0) {
+      return currentLock.snapshot;
+    }
+    return computedInvoices;
+  }, [isLocked, currentLock, computedInvoices]);
+
   // Working Month Books Count (for verification check)
   const booksCount = useMemo(() => {
+    if (isLocked && currentLock?.snapshot && currentLock.snapshot.length > 0) {
+      return currentLock.snapshot.filter((r) => r.status !== 'Not in Purchase Register').length;
+    }
     return booksRecords.filter((b) => b.month === workingMonth).length;
-  }, [booksRecords, workingMonth]);
+  }, [isLocked, currentLock, booksRecords, workingMonth]);
 
   // -------------------------------------------------------------
   // Filtered Display List
@@ -1130,6 +1225,10 @@ export default function ReconciliationView({
   // Audit Actions
   // -------------------------------------------------------------
   const handleOpenAudit = (rec: ReconciledInvoice) => {
+    if (isLocked) {
+      showToast('Reconciliation locked hai! Audit note edit nahi ho sakta.');
+      return;
+    }
     setAuditingRecord(rec);
     setAuditFormStatus(rec.auditStatus || 'Verified');
     setAuditFormNote(rec.auditNote || '');
@@ -1137,6 +1236,10 @@ export default function ReconciliationView({
 
   const handleSaveAudit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) {
+      showToast('Reconciliation locked hai! Changes save nahi honge.');
+      return;
+    }
     if (!auditingRecord) return;
 
     const key = auditingRecord.id;
@@ -1158,6 +1261,118 @@ export default function ReconciliationView({
 
     setAuditingRecord(null);
     showToast(`Audit note saved for ${auditingRecord.invNo}`);
+  };
+
+  // -------------------------------------------------------------
+  // Refresh & Lock Actions
+  // -------------------------------------------------------------
+  const handleRefresh = async () => {
+    if (isLocked) {
+      showToast('Reconciliation locked hai! Is month me data refresh nahi ho sakta.');
+      return;
+    }
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        loadRegisterRows(REGISTER_TABS.ITC_PURCHASE),
+        loadRegisterRows(REGISTER_TABS.GSTR_2B)
+      ]);
+      setRefreshTrigger((prev) => prev + 1);
+      showToast('Data refreshed');
+    } catch {
+      setRefreshTrigger((prev) => prev + 1);
+      showToast('Data refreshed');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleToggleLock = () => {
+    const userName =
+      localStorage.getItem('username') ||
+      localStorage.getItem('user_name') ||
+      'Admin';
+    const now = new Date();
+    const dateFormatted = now.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    if (!isLocked) {
+      setConfirmDialog({
+        title: 'Lock Sheet Confirmation',
+        message: `Kya aap ${workingMonth} ke records ko lock karna chahte hain? Lock hone par edit/delete nahi ho sakega.`,
+        confirmLabel: 'Lock Sheet',
+        onConfirm: () => {
+          const newLocks = {
+            ...locks,
+            [workingMonth]: {
+              isLocked: true,
+              lockedAt: dateFormatted,
+              lockedBy: userName,
+              snapshot: computedInvoices
+            }
+          };
+          setLocks(newLocks);
+          try {
+            localStorage.setItem('gst_reco_locks_v1', JSON.stringify(newLocks));
+
+            const logsRaw = localStorage.getItem('gst_reco_lock_logs_v1');
+            const logs = logsRaw ? JSON.parse(logsRaw) : [];
+            logs.push({
+              id: `log-${Date.now()}`,
+              month: workingMonth,
+              action: 'LOCK',
+              timestamp: now.toISOString(),
+              displayTime: dateFormatted,
+              user: userName
+            });
+            localStorage.setItem('gst_reco_lock_logs_v1', JSON.stringify(logs));
+          } catch { }
+
+          showToast(`${workingMonth} reconciliation locked successfully.`);
+        }
+      });
+    } else {
+      setConfirmDialog({
+        title: 'Unlock Sheet Confirmation',
+        message: `Kya aap ${workingMonth} reconciliation sheet ko unlock karna chahte hain? Unlock ke baad changes kiye ja sakenge.`,
+        confirmLabel: 'Unlock Sheet',
+        onConfirm: () => {
+          const newLocks = {
+            ...locks,
+            [workingMonth]: {
+              isLocked: false,
+              lockedAt: '',
+              lockedBy: userName,
+              snapshot: undefined
+            }
+          };
+          setLocks(newLocks);
+          try {
+            localStorage.setItem('gst_reco_locks_v1', JSON.stringify(newLocks));
+
+            const logsRaw = localStorage.getItem('gst_reco_lock_logs_v1');
+            const logs = logsRaw ? JSON.parse(logsRaw) : [];
+            logs.push({
+              id: `log-${Date.now()}`,
+              month: workingMonth,
+              action: 'UNLOCK',
+              timestamp: now.toISOString(),
+              displayTime: dateFormatted,
+              user: userName
+            });
+            localStorage.setItem('gst_reco_lock_logs_v1', JSON.stringify(logs));
+          } catch { }
+
+          showToast(`${workingMonth} reconciliation unlocked.`);
+        }
+      });
+    }
   };
 
   // -------------------------------------------------------------
@@ -1205,67 +1420,43 @@ export default function ReconciliationView({
       {/* ======================================================== */}
       {/* 1. Summary Cards (Count aur ITC Amount)                   */}
       {/* ======================================================== */}
-      <div className="reco-kpis-grid">
-        {/* Total Invoices */}
-        <div
-          className={`reco-kpi-card ${statusFilter === 'ALL' ? 'active-reco-kpi' : ''}`}
-          onClick={() => { setStatusFilter('ALL'); updateQueryParams({ tab: undefined }); }}
-          title="Click to view all invoices"
-        >
-          <div className="reco-kpi-title" style={{ color: '#350b5e' }}>Total Invoices</div>
-          <div className="reco-kpi-count" style={{ color: '#350b5e' }}>{summaryKpis.totalCount}</div>
-        </div>
+          <div className="reco-kpis-grid">
+            {/* Total Invoices */}
+            <div className="reco-kpi-card">
+              <div className="reco-kpi-title" style={{ color: '#350b5e' }}>Total Invoices</div>
+              <div className="reco-kpi-count" style={{ color: '#350b5e' }}>{summaryKpis.totalCount}</div>
+            </div>
 
-        {/* Matched (Hara) */}
-        <div
-          className={`reco-kpi-card ${statusFilter === 'Matched' ? 'active-reco-kpi' : ''}`}
-          onClick={() => { setStatusFilter('Matched'); updateQueryParams({ tab: 'matched' }); }}
-          title="Click to view Matched Invoices"
-        >
-          <div className="reco-kpi-title" style={{ color: '#15803d' }}>Matched Invoices</div>
-          <div className="reco-kpi-count" style={{ color: '#15803d' }}>{summaryKpis.matchedCount}</div>
-        </div>
+            {/* Matched (Hara) */}
+            <div className="reco-kpi-card">
+              <div className="reco-kpi-title" style={{ color: '#15803d' }}>Matched Invoices</div>
+              <div className="reco-kpi-count" style={{ color: '#15803d' }}>{summaryKpis.matchedCount}</div>
+            </div>
 
-        {/* Not Match (Laal) */}
-        <div
-          className={`reco-kpi-card ${statusFilter === 'Not Match' ? 'active-reco-kpi' : ''}`}
-          onClick={() => { setStatusFilter('Not Match'); updateQueryParams({ tab: 'not-match' }); }}
-          title="Click to view Mismatched Invoices"
-        >
-          <div className="reco-kpi-title" style={{ color: '#dc2626' }}>Not Match</div>
-          <div className="reco-kpi-count" style={{ color: '#dc2626' }}>{summaryKpis.notMatchCount}</div>
-        </div>
+            {/* Not Match (Laal) */}
+            <div className="reco-kpi-card">
+              <div className="reco-kpi-title" style={{ color: '#dc2626' }}>Not Match</div>
+              <div className="reco-kpi-count" style={{ color: '#dc2626' }}>{summaryKpis.notMatchCount}</div>
+            </div>
 
-        {/* Not in GSTR-2B (Peela) */}
-        <div
-          className={`reco-kpi-card ${statusFilter === 'Not in GSTR-2B' ? 'active-reco-kpi' : ''}`}
-          onClick={() => { setStatusFilter('Not in GSTR-2B'); updateQueryParams({ tab: 'not-in-2b' }); }}
-          title="Click to view Invoices missing in GSTR-2B"
-        >
-          <div className="reco-kpi-title" style={{ color: '#b45309' }}>Not in GSTR-2B</div>
-          <div className="reco-kpi-count" style={{ color: '#b45309' }}>{summaryKpis.notIn2bCount}</div>
-        </div>
+            {/* Not in GSTR-2B (Peela) */}
+            <div className="reco-kpi-card">
+              <div className="reco-kpi-title" style={{ color: '#b45309' }}>Not in GSTR-2B</div>
+              <div className="reco-kpi-count" style={{ color: '#b45309' }}>{summaryKpis.notIn2bCount}</div>
+            </div>
 
-        {/* Not in Purchase Register (Neela) */}
-        <div
-          className={`reco-kpi-card ${statusFilter === 'Not in Purchase Register' ? 'active-reco-kpi' : ''}`}
-          onClick={() => { setStatusFilter('Not in Purchase Register'); updateQueryParams({ tab: 'not-in-book' }); }}
-          title="Click to view Invoices missing in Books"
-        >
-          <div className="reco-kpi-title" style={{ color: '#1d4ed8' }}>Not in Purchase Register</div>
-          <div className="reco-kpi-count" style={{ color: '#1d4ed8' }}>{summaryKpis.notInBookCount}</div>
-        </div>
+            {/* Not in Purchase Register (Neela) */}
+            <div className="reco-kpi-card">
+              <div className="reco-kpi-title" style={{ color: '#1d4ed8' }}>Not in Purchase Register</div>
+              <div className="reco-kpi-count" style={{ color: '#1d4ed8' }}>{summaryKpis.notInBookCount}</div>
+            </div>
 
-        {/* Debit Note (Orange) */}
-        <div
-          className={`reco-kpi-card ${statusFilter === 'Debit Note' ? 'active-reco-kpi' : ''}`}
-          onClick={() => { setStatusFilter('Debit Note'); updateQueryParams({ tab: 'debit-note' }); }}
-          title="Click to view Debit Notes"
-        >
-          <div className="reco-kpi-title" style={{ color: '#c2410c' }}>Debit Note</div>
-          <div className="reco-kpi-count" style={{ color: '#c2410c' }}>{summaryKpis.debitNoteCount}</div>
-        </div>
-      </div>
+            {/* Debit Note (Orange) */}
+            <div className="reco-kpi-card">
+              <div className="reco-kpi-title" style={{ color: '#c2410c' }}>Debit Note</div>
+              <div className="reco-kpi-count" style={{ color: '#c2410c' }}>{summaryKpis.debitNoteCount}</div>
+            </div>
+          </div>
 
       {/* ======================================================== */}
       {/* 2. Unified Sheet Card (Header, Filters, Table)           */}
@@ -1285,9 +1476,20 @@ export default function ReconciliationView({
               <div className="reco-badge-check">✓</div>
             </div>
             <div>
-              <h1 className="reco-title">
-                Books Reconciliation <span style={{ fontWeight: 400, color: '#64748b' }}>with GSTR-2B</span>
-              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h1 className="reco-title">
+                  Books Reconciliation <span style={{ fontWeight: 400, color: '#64748b' }}>with GSTR-2B</span>
+                </h1>
+                {isLocked && (
+                  <span className="reco-locked-badge" title={`Locked by ${currentLock?.lockedBy || 'Admin'} on ${currentLock?.lockedAt}`}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    Locked ({currentLock?.lockedAt || 'Locked'})
+                  </span>
+                )}
+              </div>
               <p className="reco-subtitle">
                 Systematic 6-field invoice verification between Purchase Books & GSTR-2B across all return periods ({workingMonth})
               </p>
@@ -1295,28 +1497,6 @@ export default function ReconciliationView({
           </div>
 
           <div className="reco-header-right">
-            {/* Print Button */}
-            <button type="button" className="btn-reco-action" onClick={handlePrint} title="Print Statement">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 6 2 18 2 18 9"></polyline>
-                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-                <rect x="6" y="14" width="12" height="8"></rect>
-              </svg>
-              <span>Print</span>
-            </button>
-
-            {/* Excel Export Button */}
-            <button type="button" className="btn-reco-action" onClick={handleExportExcel} title="Export to Excel">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="3" y1="9" x2="21" y2="9"></line>
-                <line x1="3" y1="15" x2="21" y2="15"></line>
-                <line x1="9" y1="3" x2="9" y2="21"></line>
-                <line x1="15" y1="3" x2="15" y2="21"></line>
-              </svg>
-              <span>Export Excel</span>
-            </button>
-
             {/* Search Input */}
             <div className="reco-search-box">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="reco-search-icon">
@@ -1341,6 +1521,56 @@ export default function ReconciliationView({
                 </button>
               )}
             </div>
+
+            {/* Refresh Button */}
+            <button
+              type="button"
+              className="btn-reco-refresh"
+              onClick={handleRefresh}
+              disabled={isRefreshing || isLocked}
+              title={isLocked ? "Reconciliation locked hai! Data refresh nahi ho sakta." : "Reload latest Books & 2B data and re-run matching"}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isRefreshing ? 'spin-icon' : ''}
+              >
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+              </svg>
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
+
+            {/* Lock / Unlock Button */}
+            <button
+              type="button"
+              className={isLocked ? 'btn-reco-unlock' : 'btn-reco-lock'}
+              onClick={handleToggleLock}
+              title={isLocked ? "Click to unlock this month's reconciliation" : "Click to lock this month's reconciliation"}
+            >
+              {isLocked ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                  </svg>
+                  <span>Unlock</span>
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  <span>Lock</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -1524,7 +1754,9 @@ export default function ReconciliationView({
                           type="button"
                           className="btn-action-audit"
                           onClick={() => handleOpenAudit(r)}
-                          title="Add Audit Note & Mark Verified/Query"
+                          disabled={isLocked}
+                          style={isLocked ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                          title={isLocked ? "Reconciliation locked hai! Audit note edit nahi ho sakta." : "Add Audit Note & Mark Verified/Query"}
                         >
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M12 20h9"></path>
@@ -1915,6 +2147,58 @@ export default function ReconciliationView({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog (matching ITC & GSTR-2B Sheet Modal) */}
+      {confirmDialog && (
+        <div className="mo" onClick={() => setConfirmDialog(null)}>
+          <div className="mb" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: 0, color: '#350B5E', fontSize: '18px', fontWeight: 700 }}>
+              {confirmDialog.title}
+            </h3>
+            <p style={{ margin: '14px 0 22px', color: '#475569', fontSize: '14px', lineHeight: 1.5 }}>
+              {confirmDialog.message}
+            </p>
+            <div className="fr" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', margin: 0 }}>
+              <button
+                type="button"
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  color: '#334155',
+                  padding: '8px 18px',
+                  fontWeight: 600,
+                  borderRadius: 0,
+                  cursor: 'pointer',
+                  fontSize: '13px'
+                }}
+                onClick={() => setConfirmDialog(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="pri"
+                style={{
+                  background: '#350B5E',
+                  color: '#ffffff',
+                  border: '1px solid #350B5E',
+                  padding: '8px 18px',
+                  fontWeight: 600,
+                  borderRadius: 0,
+                  cursor: 'pointer',
+                  fontSize: '13px'
+                }}
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+              >
+                {confirmDialog.confirmLabel || 'Confirm'}
+              </button>
+            </div>
           </div>
         </div>
       )}

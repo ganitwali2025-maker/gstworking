@@ -2827,24 +2827,12 @@ tfoot td {
   border: 1.5px solid #e2e8f0;
   border-radius: 0 !important;
   padding: 11px 14px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  cursor: default;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   min-height: 70px;
-}
-
-.reco-kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-}
-
-.active-reco-kpi {
-  border-color: #350b5e !important;
-  box-shadow: 0 0 0 2px rgba(53, 11, 94, 0.25) !important;
-  background: #FAF8FE !important;
 }
 
 .reco-kpi-title {
@@ -3051,6 +3039,89 @@ tfoot td {
   padding: 2px 4px;
 }
 
+/* ============================================================= */
+/* REFRESH & LOCK BUTTONS IN RECO HEADER                         */
+/* ============================================================= */
+
+.btn-reco-refresh,
+.btn-reco-lock,
+.btn-reco-unlock {
+  height: 32px;
+  border-radius: 0 !important;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btn-reco-refresh {
+  background: #350B5E;
+  color: #ffffff;
+  border: 1px solid #350B5E;
+}
+
+.btn-reco-refresh:hover:not(:disabled) {
+  background: #250742;
+}
+
+.btn-reco-refresh:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-reco-lock {
+  background: #350B5E;
+  color: #ffffff;
+  border: 1px solid #350B5E;
+}
+
+.btn-reco-lock:hover {
+  background: #250742;
+}
+
+.btn-reco-unlock {
+  background: #ea580c;
+  color: #ffffff;
+  border: 1px solid #ea580c;
+}
+
+.btn-reco-unlock:hover {
+  background: #c2410c;
+}
+
+.reco-locked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 0 !important;
+  line-height: 1.2;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spin-icon {
+  animation: spin 0.75s linear infinite;
+}
+
 /* Table Wrapper & Group Headers */
 .reco-table-wrapper {
   background: #ffffff;
@@ -3247,11 +3318,11 @@ tfoot td {
 }
 
 .reco-table tbody tr:nth-child(even) td {
-  background: #FAF9FD;
+  background: #fbfcfe;
 }
 
 .reco-table tbody tr:hover td {
-  background: #F3EEFA !important;
+  background: #f1f5f9 !important;
 }
 
 .reco-table tfoot td {
@@ -3287,11 +3358,19 @@ tfoot td {
 /* GST COLUMNS LAVENDER STYLING (#F3EBFE)                         */
 /* ============================================================= */
 
-/* All 10 GST Data Cells have uniform light lavender background across all rows (no zebra alternation) */
+/* All GST Data Cells have uniform light lavender background across all rows (dono same #F3EBFE) */
 .reco-table tbody td.reco-gst-cell,
+.reco-table tbody td.reco-books-cell,
+.reco-table tbody td.reco-g2b-cell,
 .reco-table tbody tr:nth-child(even) td.reco-gst-cell,
+.reco-table tbody tr:nth-child(even) td.reco-books-cell,
+.reco-table tbody tr:nth-child(even) td.reco-g2b-cell,
 .reco-table tbody tr:hover td.reco-gst-cell,
-.reco-table tfoot td.reco-gst-cell {
+.reco-table tbody tr:hover td.reco-books-cell,
+.reco-table tbody tr:hover td.reco-g2b-cell,
+.reco-table tfoot td.reco-gst-cell,
+.reco-table tfoot td.reco-books-cell,
+.reco-table tfoot td.reco-g2b-cell {
   background: #F3EBFE !important;
   color: #2A2161;
   font-variant-numeric: tabular-nums;

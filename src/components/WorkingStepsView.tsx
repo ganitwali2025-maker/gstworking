@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StepItem, ViewType } from '../types/gst';
-import { updateQueryParams } from '../utils/router';
+import WorkingStepsDetailSheet, { WorkingDetailCategory } from './WorkingStepsDetailSheet';
+import RegisterPeriodBar from './RegisterPeriodBar';
 
 interface WorkingStepsViewProps {
   steps: StepItem[];
@@ -16,7 +17,7 @@ interface ExtraRecoCard {
   descHi: string;
   btnLabel: string;
   btnColor: 'green' | 'red';
-  targetTab: 'matched' | 'not-in-book' | 'not-in-2b';
+  targetTab: WorkingDetailCategory;
 }
 
 const EXTRA_RECO_CARDS: ExtraRecoCard[] = [
@@ -50,6 +51,8 @@ const EXTRA_RECO_CARDS: ExtraRecoCard[] = [
 ];
 
 export default function WorkingStepsView({ steps, setView, showToast }: WorkingStepsViewProps) {
+  const [activeDetailCategory, setActiveDetailCategory] = useState<WorkingDetailCategory | null>(null);
+
   const handleOpenModule = (index: number, stepTitle: string) => {
     if (index === 0) {
       setView('g1');
@@ -66,9 +69,8 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
     }
   };
 
-  const handleOpenRecoTab = (targetTab: 'matched' | 'not-in-book' | 'not-in-2b') => {
-    updateQueryParams({ tab: targetTab });
-    setView('rec');
+  const handleOpenCategory = (targetTab: WorkingDetailCategory) => {
+    setActiveDetailCategory(targetTab);
   };
 
   const getStepIcon = (index: number) => {
@@ -151,8 +153,20 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
     );
   };
 
+  if (activeDetailCategory) {
+    return (
+      <WorkingStepsDetailSheet
+        category={activeDetailCategory}
+        onBack={() => setActiveDetailCategory(null)}
+        showToast={showToast}
+      />
+    );
+  }
+
   return (
-    <section id="v-steps" className="steps-container">
+    <>
+      <RegisterPeriodBar view="steps" />
+      <section id="v-steps" className="steps-container">
       <div className="steps-cards-grid">
         {/* Steps 1 to 5 */}
         {(steps || []).map((s, index) => {
@@ -246,7 +260,7 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
               <div className="step-card-footer">
                 <span
                   className="step-workplace-link"
-                  onClick={() => handleOpenRecoTab(card.targetTab)}
+                  onClick={() => handleOpenCategory(card.targetTab)}
                   role="button"
                   tabIndex={0}
                 >
@@ -255,7 +269,7 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
                 <button
                   type="button"
                   className={`step-action-btn ${isGreen ? 'btn-green' : 'btn-red'}`}
-                  onClick={() => handleOpenRecoTab(card.targetTab)}
+                  onClick={() => handleOpenCategory(card.targetTab)}
                   style={
                     isGreen
                       ? {
@@ -284,5 +298,6 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
         })}
       </div>
     </section>
+  </>
   );
 }

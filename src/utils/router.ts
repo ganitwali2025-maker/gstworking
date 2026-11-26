@@ -80,6 +80,12 @@ export function buildUrl(view: ViewType, fy?: string, month?: string): string {
   if (month && month !== 'ALL') {
     params.set('month', month);
   }
+  if (typeof window !== 'undefined') {
+    const existingTab = new URLSearchParams(window.location.search).get('tab');
+    if (existingTab && view === 'rec') {
+      params.set('tab', existingTab);
+    }
+  }
   const queryString = params.toString();
   return queryString ? `${path}?${queryString}` : path;
 }
