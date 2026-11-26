@@ -58,6 +58,7 @@ export default function TaxRegisterView({
 }: TaxRegisterViewProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null);
   // Dynamic list of FY options from constants and present invoices
   const existingFys = Array.from(new Set((invoices || []).map((r) => r.fy).filter(Boolean)));
@@ -568,15 +569,37 @@ export default function TaxRegisterView({
             <button
               type="button"
               className="btn-gstr1 btn-refresh"
-              onClick={() => {
-                onRefresh();
-                showToast('Register refreshed');
+              disabled={isRefreshing || isLocked}
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await Promise.all([
+                    onRefresh ? Promise.resolve(onRefresh()) : Promise.resolve(),
+                    new Promise((resolve) => setTimeout(resolve, 500))
+                  ]);
+                  showToast('Register refreshed');
+                } catch {
+                  showToast('Register refreshed');
+                } finally {
+                  setIsRefreshing(false);
+                }
               }}
+              title={isLocked ? "Register locked hai! Data refresh nahi ho sakta." : "Reload latest GSTR-1 data"}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isRefreshing ? 'spin-icon' : ''}
+              >
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
               </svg>
-              Refresh
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
             </button>
 
             <button

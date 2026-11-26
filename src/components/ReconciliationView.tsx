@@ -2076,237 +2076,401 @@ export default function ReconciliationView({
       {/* ======================================================== */}
       {/* 4. Side-by-Side View Modal                               */}
       {/* ======================================================== */}
-      {viewingRecord && (
-        <div className="reco-modal-backdrop" onClick={() => setViewingRecord(null)}>
-          <div
-            className="reco-modal-card"
-            style={{ maxWidth: '820px', width: '95%' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="reco-modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <h3 style={{ margin: 0 }}>Invoice Reconciliation Comparison – {viewingRecord.invNo}</h3>
-                <span className={`reco-status-pill ${viewingRecord.status === 'Matched' ? 'pill-matched' :
-                  viewingRecord.status === 'Not Match' ? 'pill-not-match' :
-                    viewingRecord.status === 'Not in GSTR-2B' ? 'pill-not-in-2b' :
-                      viewingRecord.status === 'Not in Purchase Register' ? 'pill-not-in-book' : 'pill-debit-note'
-                  }`}>
-                  ● {viewingRecord.status}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="reco-modal-close"
-                onClick={() => setViewingRecord(null)}
-              >
-                ✕
-              </button>
-            </div>
+      {viewingRecord && (() => {
+        const isDebitNote = viewingRecord.status === 'Debit Note';
+        const isMatched = viewingRecord.status === 'Matched';
+        const badgeBg = isDebitNote ? '#FFF1DB' : isMatched ? '#DCFCE7' : '#FEE2E2';
+        const badgeColor = isDebitNote ? '#9A3412' : isMatched ? '#14532D' : '#991B1B';
+        const badgeBorder = isDebitNote ? '1px solid #F5C58B' : isMatched ? '1px solid #86EFAC' : '1px solid #FCA5A5';
+        const supplierDisplay = viewingRecord.supplierName || viewingRecord.gTradeName || 'Unknown Supplier';
 
-            <div className="reco-modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-              {/* Match Summary Banner */}
+        return (
+          <div
+            className="reco-modal-backdrop"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.55)',
+              backdropFilter: 'blur(3px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1050,
+              padding: '16px'
+            }}
+            onClick={() => setViewingRecord(null)}
+          >
+            <div
+              className="reco-modal-card"
+              style={{
+                maxWidth: '860px',
+                width: '95%',
+                background: '#ffffff',
+                borderRadius: '16px',
+                boxShadow: '0 25px 50px -12px rgba(42, 18, 80, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
               <div
                 style={{
-                  padding: '12px 16px',
-                  marginBottom: '16px',
-                  border: viewingRecord.itcMatchCount === 6 ? '1px solid #86efac' : '1px solid #fca5a5',
-                  background: viewingRecord.itcMatchCount === 6 ? '#f0fdf4' : '#fef2f2',
+                  padding: '18px 24px',
+                  background: '#ffffff',
+                  borderBottom: '1px solid #F0ECF8',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between'
+                  justifyContent: 'space-between',
+                  gap: '16px'
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 700, color: viewingRecord.itcMatchCount === 6 ? '#15803d' : '#b91c1c' }}>
-                    {viewingRecord.status === 'Debit Note'
-                      ? 'Debit Note (Purchase Return) – ITC Reduction'
-                      : viewingRecord.itcMatchCount === 6
-                        ? '✓ 6/6 Fields Match – Verified & Eligible for ITC'
-                        : `${viewingRecord.itcMatchText} – Differences detected`}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      minWidth: '40px',
+                      borderRadius: '10px',
+                      background: '#EFE8FB',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#3B1A6B'
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B1A6B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
                   </div>
-                  {viewingRecord.mismatchedFields.length > 0 && (
-                    <div style={{ fontSize: '12px', color: '#dc2626', marginTop: '3px' }}>
-                      Mismatches: {viewingRecord.mismatchedFields.join(' • ')}
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: '#2A1250', lineHeight: 1.25 }}>
+                      Invoice Reconciliation Comparison – {viewingRecord.invNo}
+                    </h3>
+                    <div style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+                      {supplierDisplay}
                     </div>
-                  )}
+                  </div>
                 </div>
-                <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#334155' }}>
-                  2B Month: <strong>{viewingRecord.month2b}</strong>
-                  {viewingRecord.hasDuplicateMonth && (
-                    <span style={{ color: '#d97706', marginLeft: '6px' }}>
-                      (⚠️ Also in {viewingRecord.duplicateMonthsList?.join(', ')})
-                    </span>
-                  )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      background: badgeBg,
+                      color: badgeColor,
+                      border: badgeBorder
+                    }}
+                  >
+                    {viewingRecord.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setViewingRecord(null)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      minWidth: '36px',
+                      borderRadius: '8px',
+                      background: '#F4EFFC',
+                      border: 'none',
+                      color: '#3B1A6B',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#E8DDF7'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#F4EFFC'}
+                    title="Close"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
 
-              {/* Side-by-Side Table */}
-              <table className="reco-view-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ background: '#350b5e', color: '#ffffff' }}>
-                    <th style={{ padding: '9px 12px', textAlign: 'left', width: '22%' }}>FIELD NAME</th>
-                    <th style={{ padding: '9px 12px', textAlign: 'right', width: '28%' }}>BOOKS</th>
-                    <th style={{ padding: '9px 12px', textAlign: 'right', width: '28%' }}>GOVT GSTR-2B</th>
-                    <th style={{ padding: '9px 12px', textAlign: 'right', width: '22%' }}>DIFFERENCE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* GSTIN */}
-                  <tr style={{ borderBottom: '1px solid #edf2f7', background: !viewingRecord.isGstinMatch && viewingRecord.gGstin ? '#fee2e2' : 'transparent' }}>
-                    <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>Supplier GSTIN</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600 }}>{viewingRecord.gstin || '-'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600 }}>{viewingRecord.gGstin || viewingRecord.gstin || '-'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                      <span className={`mini-match-pill ${viewingRecord.isGstinMatch ? 'match' : 'mismatch'}`}>
-                        {viewingRecord.isGstinMatch ? 'Match' : 'Not Match'}
-                      </span>
-                    </td>
-                  </tr>
+              {/* Modal Body */}
+              <div style={{ padding: '20px 24px', maxHeight: '70vh', overflowY: 'auto' }}>
+                {/* Banner below header: light green if 6/6 match, light red if mismatch/debit note */}
+                {(() => {
+                  const isAllMatched = viewingRecord.itcMatchCount === 6 && viewingRecord.status !== 'Debit Note';
+                  const bannerBg = isAllMatched ? '#F0FDF4' : '#FFF1F1';
+                  const bannerBorder = isAllMatched ? '1px solid #86EFAC' : '1px solid #F3C4C4';
+                  const bannerTextColor = isAllMatched ? '#166534' : '#B42318';
 
-                  {/* Invoice No */}
-                  <tr style={{ borderBottom: '1px solid #edf2f7', background: !viewingRecord.isInvMatch && viewingRecord.gInvNo ? '#fee2e2' : 'transparent' }}>
-                    <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>Invoice No.</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600 }}>{viewingRecord.invNo || '-'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600 }}>{viewingRecord.gInvNo || viewingRecord.invNo || '-'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                      <span className={`mini-match-pill ${viewingRecord.isInvMatch ? 'match' : 'mismatch'}`}>
-                        {viewingRecord.isInvMatch ? 'Match' : 'Not Match'}
-                      </span>
-                    </td>
-                  </tr>
-
-                  {/* Supplier Name */}
-                  <tr style={{ borderBottom: '1px solid #edf2f7' }}>
-                    <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>Supplier Name</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>{viewingRecord.supplierName || '-'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>{viewingRecord.gTradeName || viewingRecord.supplierName || '-'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>-</td>
-                  </tr>
-
-                  {/* Date */}
-                  <tr style={{ borderBottom: '1px solid #edf2f7' }}>
-                    <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>Invoice Date</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>{viewingRecord.date || '-'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>{viewingRecord.gDate || viewingRecord.date || '-'}</td>
-                    <td style={{ padding: '9px 12px', textAlign: 'right' }}>-</td>
-                  </tr>
-
-                  {/* Taxable Value */}
-                  <tr style={{ borderBottom: '1px solid #edf2f7', background: !viewingRecord.isTaxableMatch ? '#fee2e2' : 'transparent' }}>
-                    <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>Taxable Value</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700 }}>{formatAmount(viewingRecord.bTaxable)}</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700 }}>{formatAmount(viewingRecord.gTaxable)}</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: Math.abs(viewingRecord.dTaxable) > 1 ? '#dc2626' : '#15803d' }}>
-                      {formatAmount(viewingRecord.dTaxable)}
-                    </td>
-                  </tr>
-
-                  {/* IGST */}
-                  <tr style={{ borderBottom: '1px solid #edf2f7', background: !viewingRecord.isIgstMatch ? '#fee2e2' : 'transparent' }}>
-                    <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>IGST</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700 }}>{formatAmount(viewingRecord.bIgst)}</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700 }}>{formatAmount(viewingRecord.gIgst)}</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: Math.abs(viewingRecord.dIgst) > 1 ? '#dc2626' : '#15803d' }}>
-                      {formatAmount(viewingRecord.dIgst)}
-                    </td>
-                  </tr>
-
-                  {/* CGST */}
-                  <tr style={{ borderBottom: '1px solid #edf2f7', background: !viewingRecord.isCgstMatch ? '#fee2e2' : 'transparent' }}>
-                    <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>CGST</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700 }}>{formatAmount(viewingRecord.bCgst)}</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700 }}>{formatAmount(viewingRecord.gCgst)}</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: Math.abs(viewingRecord.dCgst) > 1 ? '#dc2626' : '#15803d' }}>
-                      {formatAmount(viewingRecord.dCgst)}
-                    </td>
-                  </tr>
-
-                  {/* SGST */}
-                  <tr style={{ borderBottom: '1px solid #edf2f7', background: !viewingRecord.isSgstMatch ? '#fee2e2' : 'transparent' }}>
-                    <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>SGST</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700 }}>{formatAmount(viewingRecord.bSgst)}</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700 }}>{formatAmount(viewingRecord.gSgst)}</td>
-                    <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: Math.abs(viewingRecord.dSgst) > 1 ? '#dc2626' : '#15803d' }}>
-                      {formatAmount(viewingRecord.dSgst)}
-                    </td>
-                  </tr>
-
-                  {/* Total */}
-                  <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                    <td style={{ padding: '11px 12px', color: '#1e293b' }}>TOTAL AMOUNT</td>
-                    <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: '#350b5e', fontSize: '14px' }}>
-                      {formatAmount(viewingRecord.bTotal)}
-                    </td>
-                    <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: '#1e1b4b', fontSize: '14px' }}>
-                      {formatAmount(viewingRecord.gTotal)}
-                    </td>
-                    <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: Math.abs(viewingRecord.dTotal) > 1 ? '#dc2626' : '#15803d', fontSize: '14px' }}>
-                      {formatAmount(viewingRecord.dTotal)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {/* Audit History inside View Modal if available */}
-              {viewingRecord.auditNote && (
-                <div style={{ marginTop: '16px', padding: '12px 14px', background: '#f1f5f9', borderLeft: '3px solid #350b5e' }}>
-                  <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '4px' }}>
-                    Saved Audit Observation ({viewingRecord.auditStatus}):
-                  </div>
-                  <div style={{ fontSize: '13px', color: '#1e293b' }}>{viewingRecord.auditNote}</div>
-                  {viewingRecord.auditUpdatedAt && (
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                      Updated: {viewingRecord.auditUpdatedAt}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Audit Change Log in View Modal */}
-              {(() => {
-                const invoiceLogs = auditChangeLogs.filter(
-                  (l) => cleanInv(l.invNo) === cleanInv(viewingRecord.invNo) || cleanStr(l.gstin) === cleanStr(viewingRecord.gstin)
-                );
-                if (invoiceLogs.length === 0) return null;
-                return (
-                  <div style={{ marginTop: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 14px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#350b5e', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                      <span>📋</span>
-                      <span>Audit Change Trail (Audit Log):</span>
-                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>({invoiceLogs.length} changes recorded)</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '130px', overflowY: 'auto' }}>
-                      {invoiceLogs.map((log) => (
-                        <div key={log.id} style={{ fontSize: '12px', background: '#ffffff', border: '1px solid #e2e8f0', padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <strong style={{ color: '#0f172a' }}>{log.field}:</strong>{' '}
-                            <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>{log.oldValue}</span>{' '}
-                            ➔{' '}
-                            <span style={{ color: '#15803d', fontWeight: 700 }}>{log.newValue}</span>
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '12px' }}>
-                            by <strong>{log.user}</strong> on {log.timestamp}
-                          </div>
+                  return (
+                    <div
+                      style={{
+                        padding: '12px 18px',
+                        marginBottom: '18px',
+                        borderRadius: '10px',
+                        border: bannerBorder,
+                        background: bannerBg,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800, color: bannerTextColor, fontSize: '13.5px' }}>
+                          {viewingRecord.status === 'Debit Note'
+                            ? 'Debit Note (Purchase Return) – ITC Reduction'
+                            : viewingRecord.itcMatchCount === 6
+                              ? '✓ 6/6 Fields Match – Verified & Eligible for ITC'
+                              : `${viewingRecord.itcMatchText} – Differences detected`}
                         </div>
-                      ))}
+                        {viewingRecord.mismatchedFields.length > 0 && (
+                          <div style={{ fontSize: '12px', color: '#B42318', marginTop: '3px' }}>
+                            Mismatches: {viewingRecord.mismatchedFields.join(' • ')}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#334155' }}>
+                        2B Month: <strong style={{ color: '#2A1250' }}>{viewingRecord.month2b}</strong>
+                        {viewingRecord.hasDuplicateMonth && (
+                          <span style={{ color: '#d97706', marginLeft: '6px' }}>
+                            (⚠️ Also in {viewingRecord.duplicateMonthsList?.join(', ')})
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })()}
-            </div>
+                  );
+                })()}
 
-            <div className="reco-modal-footer">
-              <button
-                type="button"
-                className="btn-reco-action"
-                onClick={() => setViewingRecord(null)}
+                {/* Table Container: rounded 12px border */}
+                <div style={{ border: '1px solid #E6E0F0', borderRadius: '12px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', fontFamily: "'Inter', sans-serif" }}>
+                    <thead>
+                      <tr style={{ background: '#3B1A6B', color: '#ffffff' }}>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', width: '24%', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>FIELD</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right', width: '26%', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>BOOKS</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right', width: '26%', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>GOVT GSTR-2B</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right', width: '24%', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>DIFFERENCE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* GSTIN */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !viewingRecord.isGstinMatch && viewingRecord.gGstin ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Supplier GSTIN</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250' }}>{viewingRecord.gstin || '-'}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250' }}>{viewingRecord.gGstin || viewingRecord.gstin || '-'}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                              background: viewingRecord.isGstinMatch ? '#DCFCE7' : '#FEE2E2',
+                              color: viewingRecord.isGstinMatch ? '#14532D' : '#B42318',
+                              fontSize: '11.5px',
+                              fontWeight: 700
+                            }}
+                          >
+                            {viewingRecord.isGstinMatch ? 'Match' : 'Not Match'}
+                          </span>
+                        </td>
+                      </tr>
+
+                      {/* Invoice No */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !viewingRecord.isInvMatch && viewingRecord.gInvNo ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Invoice No.</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250' }}>{viewingRecord.invNo || '-'}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250' }}>{viewingRecord.gInvNo || viewingRecord.invNo || '-'}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                              background: viewingRecord.isInvMatch ? '#DCFCE7' : '#FEE2E2',
+                              color: viewingRecord.isInvMatch ? '#14532D' : '#B42318',
+                              fontSize: '11.5px',
+                              fontWeight: 700
+                            }}
+                          >
+                            {viewingRecord.isInvMatch ? 'Match' : 'Not Match'}
+                          </span>
+                        </td>
+                      </tr>
+
+                      {/* Supplier Name */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Supplier Name</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#334155' }}>{viewingRecord.supplierName || '-'}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#334155' }}>{viewingRecord.gTradeName || viewingRecord.supplierName || '-'}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#94A3B8' }}>-</td>
+                      </tr>
+
+                      {/* Date */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Invoice Date</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#334155' }}>{viewingRecord.date || '-'}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#334155' }}>{viewingRecord.gDate || viewingRecord.date || '-'}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#94A3B8' }}>-</td>
+                      </tr>
+
+                      {/* Taxable Value */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !viewingRecord.isTaxableMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>Taxable Value</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#2A1250' }}>{formatAmount(viewingRecord.bTaxable)}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#2A1250' }}>{formatAmount(viewingRecord.gTaxable)}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: Math.abs(viewingRecord.dTaxable) > 1 ? '#B42318' : '#166534' }}>
+                          {formatAmount(viewingRecord.dTaxable)}
+                        </td>
+                      </tr>
+
+                      {/* IGST */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !viewingRecord.isIgstMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>IGST</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#2A1250' }}>{formatAmount(viewingRecord.bIgst)}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#2A1250' }}>{formatAmount(viewingRecord.gIgst)}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: Math.abs(viewingRecord.dIgst) > 1 ? '#B42318' : '#166534' }}>
+                          {formatAmount(viewingRecord.dIgst)}
+                        </td>
+                      </tr>
+
+                      {/* CGST */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !viewingRecord.isCgstMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>CGST</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#2A1250' }}>{formatAmount(viewingRecord.bCgst)}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#2A1250' }}>{formatAmount(viewingRecord.gCgst)}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: Math.abs(viewingRecord.dCgst) > 1 ? '#B42318' : '#166534' }}>
+                          {formatAmount(viewingRecord.dCgst)}
+                        </td>
+                      </tr>
+
+                      {/* SGST */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !viewingRecord.isSgstMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>SGST</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#2A1250' }}>{formatAmount(viewingRecord.bSgst)}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: '#2A1250' }}>{formatAmount(viewingRecord.gSgst)}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: Math.abs(viewingRecord.dSgst) > 1 ? '#B42318' : '#166534' }}>
+                          {formatAmount(viewingRecord.dSgst)}
+                        </td>
+                      </tr>
+
+                      {/* Total */}
+                      <tr style={{ height: '52px', background: '#F8F6FC', fontWeight: 800, borderTop: '2px solid #E6E0F0' }}>
+                        <td style={{ padding: '12px 16px', color: '#2A1250', fontWeight: 800 }}>TOTAL AMOUNT</td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#3B1A6B', fontSize: '14px', fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+                          {formatAmount(viewingRecord.bTotal)}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#2A1250', fontSize: '14px', fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+                          {formatAmount(viewingRecord.gTotal)}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right', color: Math.abs(viewingRecord.dTotal) > 1 ? '#B42318' : '#166534', fontSize: '14px', fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+                          {formatAmount(viewingRecord.dTotal)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Audit History inside View Modal if available */}
+                {viewingRecord.auditNote && (
+                  <div style={{ marginTop: '16px', padding: '12px 16px', background: '#F8F6FC', borderRadius: '10px', borderLeft: '4px solid #3B1A6B' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#3B1A6B', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Saved Audit Observation ({viewingRecord.auditStatus}):
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#1E293B' }}>{viewingRecord.auditNote}</div>
+                    {viewingRecord.auditUpdatedAt && (
+                      <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+                        Updated: {viewingRecord.auditUpdatedAt}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Audit Change Log in View Modal */}
+                {(() => {
+                  const invoiceLogs = auditChangeLogs.filter(
+                    (l) => cleanInv(l.invNo) === cleanInv(viewingRecord.invNo) || cleanStr(l.gstin) === cleanStr(viewingRecord.gstin)
+                  );
+                  if (invoiceLogs.length === 0) return null;
+                  return (
+                    <div style={{ marginTop: '16px', background: '#FBFAFD', border: '1px solid #EBE4F3', borderRadius: '10px', padding: '12px 16px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#3B1A6B', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                        <span>📋</span>
+                        <span>Audit Change Trail (Audit Log):</span>
+                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>({invoiceLogs.length} changes recorded)</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '130px', overflowY: 'auto' }}>
+                        {invoiceLogs.map((log) => (
+                          <div key={log.id} style={{ fontSize: '12px', background: '#ffffff', border: '1px solid #EAE5F2', borderRadius: '6px', padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <strong style={{ color: '#2A1250' }}>{log.field}:</strong>{' '}
+                              <span style={{ color: '#B42318', textDecoration: 'line-through' }}>{log.oldValue}</span>{' '}
+                              ➔{' '}
+                              <span style={{ color: '#166534', fontWeight: 700 }}>{log.newValue}</span>
+                            </div>
+                            <div style={{ fontSize: '11px', color: '#64748B', whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                              by <strong>{log.user}</strong> on {log.timestamp}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Footer */}
+              <div
+                style={{
+                  padding: '14px 24px',
+                  background: '#FBFAFD',
+                  borderTop: '1px solid #EBE6F3',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center'
+                }}
               >
-                Close View
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingRecord(null)}
+                  style={{
+                    height: '42px',
+                    padding: '0 24px',
+                    borderRadius: '8px',
+                    background: '#3B1A6B',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(59, 26, 107, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#2A1250'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#3B1A6B'}
+                >
+                  Close View
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ======================================================== */}
       {/* 5. Audit Action Modal (Edit Mode Comparison Table)       */}
@@ -2367,452 +2531,792 @@ export default function ReconciliationView({
           showToast('Copied GSTR-2B values to Books inputs.');
         };
 
+        const isDebitNote = auditingRecord.status === 'Debit Note';
+        const isMatched = all6Match || auditingRecord.status === 'Matched';
+        const badgeBg = isDebitNote ? '#FFF1DB' : isMatched ? '#DCFCE7' : '#FEE2E2';
+        const badgeColor = isDebitNote ? '#9A3412' : isMatched ? '#14532D' : '#991B1B';
+        const badgeBorder = isDebitNote ? '1px solid #F5C58B' : isMatched ? '1px solid #86EFAC' : '1px solid #FCA5A5';
+        const supplierDisplay = auditingRecord.supplierName || auditingRecord.gTradeName || 'Unknown Supplier';
+
         return (
-          <div className="reco-modal-backdrop" onClick={() => setAuditingRecord(null)}>
+          <div
+            className="reco-modal-backdrop"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.55)',
+              backdropFilter: 'blur(3px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1050,
+              padding: '16px'
+            }}
+            onClick={() => setAuditingRecord(null)}
+          >
             <div
               className="reco-modal-card"
-              style={{ maxWidth: '850px', width: '96%' }}
+              style={{
+                maxWidth: '860px',
+                width: '95%',
+                background: '#ffffff',
+                borderRadius: '16px',
+                boxShadow: '0 25px 50px -12px rgba(42, 18, 80, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+                fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="reco-modal-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <h3 style={{ margin: 0, color: '#350b5e' }}>Invoice Reconciliation Audit – {auditingRecord.invNo}</h3>
-                  <span className={`reco-status-pill ${all6Match ? 'pill-matched' :
-                    auditingRecord.status === 'Matched' ? 'pill-matched' :
-                    auditingRecord.status === 'Not Match' ? 'pill-not-match' :
-                    auditingRecord.status === 'Not in GSTR-2B' ? 'pill-not-in-2b' :
-                    auditingRecord.status === 'Not in Purchase Register' ? 'pill-not-in-book' : 'pill-debit-note'
-                  }`}>
-                    ● {all6Match ? 'Matched (Auto)' : auditingRecord.status}
-                  </span>
+              <div
+                style={{
+                  padding: '18px 24px',
+                  background: '#ffffff',
+                  borderBottom: '1px solid #F0ECF8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      minWidth: '40px',
+                      borderRadius: '10px',
+                      background: '#EFE8FB',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#3B1A6B'
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B1A6B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: '#2A1250', lineHeight: 1.25 }}>
+                      Invoice Reconciliation Audit – {auditingRecord.invNo}
+                    </h3>
+                    <div style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+                      {supplierDisplay}
+                    </div>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  className="reco-modal-close"
-                  onClick={() => setAuditingRecord(null)}
-                >
-                  ✕
-                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      background: badgeBg,
+                      color: badgeColor,
+                      border: badgeBorder
+                    }}
+                  >
+                    {all6Match ? 'Matched (Auto)' : auditingRecord.status}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAuditingRecord(null)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      minWidth: '36px',
+                      borderRadius: '8px',
+                      background: '#F4EFFC',
+                      border: 'none',
+                      color: '#3B1A6B',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#E8DDF7'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#F4EFFC'}
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
-              <div className="reco-modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
-                {/* Match Summary & Sync Bar */}
+              {/* Modal Body */}
+              <div style={{ padding: '20px 24px', maxHeight: '72vh', overflowY: 'auto' }}>
+                {/* Info Banner below header */}
                 <div
                   style={{
-                    padding: '12px 16px',
-                    marginBottom: '16px',
-                    border: all6Match ? '1px solid #86efac' : '1px solid #fca5a5',
-                    background: all6Match ? '#f0fdf4' : '#fef2f2',
+                    padding: '14px 18px',
+                    marginBottom: '18px',
+                    borderRadius: '10px',
+                    border: all6Match ? '1px solid #86EFAC' : '1px solid #DCCFF3',
+                    background: all6Match ? '#F0FDF4' : '#F4EFFC',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
-                    gap: '10px'
+                    gap: '12px'
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 700, color: all6Match ? '#15803d' : '#b91c1c' }}>
-                      {all6Match
-                        ? '✓ All 6 Fields Match! On Save, status will automatically become "Matched" (ITC Verified).'
-                        : 'Audit Edit Mode – Only mismatched fields in Books are editable. Govt GSTR-2B is read-only.'}
+                    <div style={{ fontWeight: 800, color: all6Match ? '#166534' : '#3B1A6B', fontSize: '13.5px' }}>
+                      {all6Match ? '✓ All 6 Fields Match – Ready to Save' : 'Audit Edit Mode'}
                     </div>
-                    <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
-                      2B Month: <strong>{auditingRecord.month2b}</strong> • Matched fields are locked 🔒.
+                    <div style={{ fontSize: '12px', color: all6Match ? '#15803D' : '#5B4086', marginTop: '3px' }}>
+                      {all6Match ? 'Books data matches GSTR-2B. Click "Save Audit" to update Books and mark as Matched.' : 'Only mismatched fields in Books are editable. GSTR-2B is read-only. Matched fields are locked.'}
                     </div>
                   </div>
 
-                  {!all6Match && (
-                    <button
-                      type="button"
-                      onClick={handleCopyAllFrom2b}
-                      style={{
-                        background: '#350b5e',
-                        color: '#ffffff',
-                        border: 'none',
-                        padding: '6px 12px',
-                        fontSize: '11.5px',
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        borderRadius: 0,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px'
-                      }}
-                      title="Auto-fill Books fields with Govt GSTR-2B values to match"
-                    >
-                      ⚡ Copy 2B Values to Books
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleCopyAllFrom2b}
+                    style={{
+                      background: '#3B1A6B',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '8px 16px',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      borderRadius: '8px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 6px rgba(59, 26, 107, 0.2)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#2A1250'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#3B1A6B'}
+                    title="Auto-fill Books fields with Govt GSTR-2B values to match"
+                  >
+                    <span>⚡</span>
+                    <span>Copy 2B Values to Books</span>
+                  </button>
                 </div>
 
-                {/* Side-by-Side Comparison & Edit Table */}
-                <table className="reco-view-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                  <thead>
-                    <tr style={{ background: '#350b5e', color: '#ffffff' }}>
-                      <th style={{ padding: '9px 12px', textAlign: 'left', width: '22%' }}>FIELD NAME</th>
-                      <th style={{ padding: '9px 12px', textAlign: 'right', width: '30%' }}>BOOKS (EDITABLE)</th>
-                      <th style={{ padding: '9px 12px', textAlign: 'right', width: '28%' }}>GOVT GSTR-2B (READ-ONLY)</th>
-                      <th style={{ padding: '9px 12px', textAlign: 'right', width: '20%' }}>DIFFERENCE</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Supplier GSTIN */}
-                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isGstinMatch ? '#fee2e2' : 'transparent' }}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
-                        Supplier GSTIN
-                      </td>
-                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                        {canEditGstin ? (
-                          <input
-                            type="text"
-                            value={auditEditState.gstin}
-                            onChange={(e) => setAuditEditState(prev => ({ ...prev, gstin: e.target.value.toUpperCase() }))}
-                            maxLength={15}
+                {/* Table Container: rounded 12px border */}
+                <div style={{ border: '1px solid #E6E0F0', borderRadius: '12px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', fontFamily: "'Inter', sans-serif" }}>
+                    <thead>
+                      <tr style={{ background: '#3B1A6B', color: '#ffffff' }}>
+                        <th style={{ padding: '12px 16px', textAlign: 'left', width: '22%', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>FIELD</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right', width: '30%', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>BOOKS (EDITABLE)</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right', width: '26%', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>GOVT GSTR-2B (READ-ONLY)</th>
+                        <th style={{ padding: '12px 16px', textAlign: 'right', width: '22%', fontSize: '12px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>DIFFERENCE</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* Supplier GSTIN */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !isGstinMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>
+                          Supplier GSTIN
+                        </td>
+                        <td style={{ padding: '7px 14px', textAlign: 'right' }}>
+                          {canEditGstin ? (
+                            <input
+                              type="text"
+                              value={auditEditState.gstin}
+                              onChange={(e) => setAuditEditState(prev => ({ ...prev, gstin: e.target.value.toUpperCase() }))}
+                              maxLength={15}
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                border: '1.5px solid #6D3FC0',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: '#2A1250',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textAlign: 'right',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                background: '#F6F4FA',
+                                border: '1px solid #E3DFEC',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '6px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: '#475569',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            >
+                              <span>{auditEditState.gstin || '-'}</span>
+                              <span title="Locked: Field Matches 2B" style={{ color: '#166534', fontSize: '11px' }}>🔒</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250' }}>
+                          {auditingRecord.gGstin || auditingRecord.gstin || '-'}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                          <span
                             style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1.5px solid #7c3aed',
-                              borderRadius: 0,
-                              fontFamily: 'monospace',
-                              fontWeight: 700,
-                              fontSize: '12px',
-                              outline: 'none',
-                              textAlign: 'right'
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                              background: isGstinMatch ? '#DCFCE7' : '#FEE2E2',
+                              color: isGstinMatch ? '#14532D' : '#B42318',
+                              fontSize: '11.5px',
+                              fontWeight: 700
                             }}
-                          />
-                        ) : (
-                          <span style={{ fontWeight: 600 }}>
-                            {auditEditState.gstin || '-'} <span title="Locked: Field Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          >
+                            {isGstinMatch ? 'Match' : 'Not Match'}
                           </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
-                        {auditingRecord.gGstin || auditingRecord.gstin || '-'}
-                      </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                        <span className={`mini-match-pill ${isGstinMatch ? 'match' : 'mismatch'}`}>
-                          {isGstinMatch ? 'Match' : 'Not Match'}
-                        </span>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
 
-                    {/* Invoice No. */}
-                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isInvMatch ? '#fee2e2' : 'transparent' }}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
-                        Invoice No.
-                      </td>
-                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                        {canEditInv ? (
-                          <input
-                            type="text"
-                            value={auditEditState.invNo}
-                            onChange={(e) => setAuditEditState(prev => ({ ...prev, invNo: e.target.value }))}
+                      {/* Invoice No. */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !isInvMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>
+                          Invoice No.
+                        </td>
+                        <td style={{ padding: '7px 14px', textAlign: 'right' }}>
+                          {canEditInv ? (
+                            <input
+                              type="text"
+                              value={auditEditState.invNo}
+                              onChange={(e) => setAuditEditState(prev => ({ ...prev, invNo: e.target.value }))}
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                border: '1.5px solid #6D3FC0',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: '#2A1250',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textAlign: 'right',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                background: '#F6F4FA',
+                                border: '1px solid #E3DFEC',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '6px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: '#475569',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            >
+                              <span>{auditEditState.invNo || '-'}</span>
+                              <span title="Locked: Field Matches 2B" style={{ color: '#166534', fontSize: '11px' }}>🔒</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250' }}>
+                          {auditingRecord.gInvNo || auditingRecord.invNo || '-'}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                          <span
                             style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1.5px solid #7c3aed',
-                              borderRadius: 0,
-                              fontWeight: 700,
-                              fontSize: '12px',
-                              outline: 'none',
-                              textAlign: 'right'
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                              background: isInvMatch ? '#DCFCE7' : '#FEE2E2',
+                              color: isInvMatch ? '#14532D' : '#B42318',
+                              fontSize: '11.5px',
+                              fontWeight: 700
                             }}
-                          />
-                        ) : (
-                          <span style={{ fontWeight: 600 }}>
-                            {auditEditState.invNo || '-'} <span title="Locked: Field Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          >
+                            {isInvMatch ? 'Match' : 'Not Match'}
                           </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
-                        {auditingRecord.gInvNo || auditingRecord.invNo || '-'}
-                      </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                        <span className={`mini-match-pill ${isInvMatch ? 'match' : 'mismatch'}`}>
-                          {isInvMatch ? 'Match' : 'Not Match'}
-                        </span>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
 
-                    {/* Supplier Name */}
-                    <tr style={{ borderBottom: '1px solid #edf2f7' }}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
-                        Supplier Name
-                      </td>
-                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                        {canEditName ? (
-                          <input
-                            type="text"
-                            value={auditEditState.supplierName}
-                            onChange={(e) => setAuditEditState(prev => ({ ...prev, supplierName: e.target.value }))}
+                      {/* Supplier Name */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !isNameMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>
+                          Supplier Name
+                        </td>
+                        <td style={{ padding: '7px 14px', textAlign: 'right' }}>
+                          {canEditName ? (
+                            <input
+                              type="text"
+                              value={auditEditState.supplierName}
+                              onChange={(e) => setAuditEditState(prev => ({ ...prev, supplierName: e.target.value }))}
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                border: '1.5px solid #6D3FC0',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: '#2A1250',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textAlign: 'right',
+                                outline: 'none',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                background: '#F6F4FA',
+                                border: '1px solid #E3DFEC',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '6px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: '#475569',
+                                boxSizing: 'border-box'
+                              }}
+                            >
+                              <span>{auditEditState.supplierName || '-'}</span>
+                              <span title="Locked: Matches 2B" style={{ color: '#166534', fontSize: '11px' }}>🔒</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#334155' }}>
+                          {auditingRecord.gTradeName || auditingRecord.supplierName || '-'}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                          <span
                             style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1.5px solid #7c3aed',
-                              borderRadius: 0,
-                              fontSize: '12px',
-                              outline: 'none',
-                              textAlign: 'right'
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                              background: isNameMatch ? '#DCFCE7' : '#FEE2E2',
+                              color: isNameMatch ? '#14532D' : '#B42318',
+                              fontSize: '11.5px',
+                              fontWeight: 700
                             }}
-                          />
-                        ) : (
-                          <span>
-                            {auditEditState.supplierName || '-'} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          >
+                            {isNameMatch ? 'Match' : 'Not Match'}
                           </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right', color: '#1e293b' }}>
-                        {auditingRecord.gTradeName || auditingRecord.supplierName || '-'}
-                      </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                        <span className={`mini-match-pill ${isNameMatch ? 'match' : 'mismatch'}`}>
-                          {isNameMatch ? 'Match' : 'Not Match'}
-                        </span>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
 
-                    {/* Invoice Date */}
-                    <tr style={{ borderBottom: '1px solid #edf2f7' }}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
-                        Invoice Date
-                      </td>
-                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                        {canEditDate ? (
-                          <input
-                            type="text"
-                            value={auditEditState.date}
-                            onChange={(e) => setAuditEditState(prev => ({ ...prev, date: e.target.value }))}
-                            placeholder="YYYY-MM-DD"
+                      {/* Invoice Date */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !isDateMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>
+                          Invoice Date
+                        </td>
+                        <td style={{ padding: '7px 14px', textAlign: 'right' }}>
+                          {canEditDate ? (
+                            <input
+                              type="text"
+                              value={auditEditState.date}
+                              onChange={(e) => setAuditEditState(prev => ({ ...prev, date: e.target.value }))}
+                              placeholder="YYYY-MM-DD"
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                border: '1.5px solid #6D3FC0',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: '#2A1250',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textAlign: 'right',
+                                outline: 'none',
+                                boxSizing: 'border-box'
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                background: '#F6F4FA',
+                                border: '1px solid #E3DFEC',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '6px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: '#475569',
+                                boxSizing: 'border-box'
+                              }}
+                            >
+                              <span>{auditEditState.date || '-'}</span>
+                              <span title="Locked: Matches 2B" style={{ color: '#166534', fontSize: '11px' }}>🔒</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#334155' }}>
+                          {auditingRecord.gDate || auditingRecord.date || '-'}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                          <span
                             style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1.5px solid #7c3aed',
-                              borderRadius: 0,
-                              fontSize: '12px',
-                              outline: 'none',
-                              textAlign: 'right'
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '3px 10px',
+                              borderRadius: '999px',
+                              background: isDateMatch ? '#DCFCE7' : '#FEE2E2',
+                              color: isDateMatch ? '#14532D' : '#B42318',
+                              fontSize: '11.5px',
+                              fontWeight: 700
                             }}
-                          />
-                        ) : (
-                          <span>
-                            {auditEditState.date || '-'} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          >
+                            {isDateMatch ? 'Match' : 'Not Match'}
                           </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right', color: '#1e293b' }}>
-                        {auditingRecord.gDate || auditingRecord.date || '-'}
-                      </td>
-                      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-                        <span className={`mini-match-pill ${isDateMatch ? 'match' : 'mismatch'}`}>
-                          {isDateMatch ? 'Match' : 'Not Match'}
-                        </span>
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
 
-                    {/* Taxable Value */}
-                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isTaxableMatch ? '#fee2e2' : 'transparent' }}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
-                        Taxable Value
-                      </td>
-                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                        {canEditTaxable ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={auditEditState.taxable}
-                            onChange={(e) => setAuditEditState(prev => ({ ...prev, taxable: parseFloat(e.target.value) || 0 }))}
-                            style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1.5px solid #7c3aed',
-                              borderRadius: 0,
-                              fontWeight: 700,
-                              fontSize: '12.5px',
-                              textAlign: 'right',
-                              outline: 'none'
-                            }}
-                          />
-                        ) : (
-                          <span className="num-val" style={{ fontWeight: 700 }}>
-                            {formatAmount(curTaxable)} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
-                        {formatAmount(auditingRecord.gTaxable)}
-                      </td>
-                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: isTaxableMatch ? '#15803d' : '#dc2626' }}>
-                        {formatAmount(diffTaxable)}
-                      </td>
-                    </tr>
+                      {/* Taxable Value */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !isTaxableMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>
+                          Taxable Value
+                        </td>
+                        <td style={{ padding: '7px 14px', textAlign: 'right' }}>
+                          {canEditTaxable ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={auditEditState.taxable}
+                              onChange={(e) => setAuditEditState(prev => ({ ...prev, taxable: parseFloat(e.target.value) || 0 }))}
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                border: '1.5px solid #6D3FC0',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: '#2A1250',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textAlign: 'right',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                background: '#F6F4FA',
+                                border: '1px solid #E3DFEC',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '6px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: '#475569',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            >
+                              <span>{formatAmount(curTaxable)}</span>
+                              <span title="Locked: Matches 2B" style={{ color: '#166534', fontSize: '11px' }}>🔒</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatAmount(auditingRecord.gTaxable)}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isTaxableMatch ? '#166534' : '#B42318' }}>
+                          {formatAmount(diffTaxable)}
+                        </td>
+                      </tr>
 
-                    {/* IGST */}
-                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isIgstMatch ? '#fee2e2' : 'transparent' }}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
-                        IGST
-                      </td>
-                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                        {canEditIgst ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={auditEditState.igst}
-                            onChange={(e) => setAuditEditState(prev => ({ ...prev, igst: parseFloat(e.target.value) || 0 }))}
-                            style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1.5px solid #7c3aed',
-                              borderRadius: 0,
-                              fontWeight: 700,
-                              fontSize: '12.5px',
-                              textAlign: 'right',
-                              outline: 'none'
-                            }}
-                          />
-                        ) : (
-                          <span className="num-val" style={{ fontWeight: 700 }}>
-                            {formatAmount(curIgst)} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
-                        {formatAmount(auditingRecord.gIgst)}
-                      </td>
-                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: isIgstMatch ? '#15803d' : '#dc2626' }}>
-                        {formatAmount(diffIgst)}
-                      </td>
-                    </tr>
+                      {/* IGST */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !isIgstMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>
+                          IGST
+                        </td>
+                        <td style={{ padding: '7px 14px', textAlign: 'right' }}>
+                          {canEditIgst ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={auditEditState.igst}
+                              onChange={(e) => setAuditEditState(prev => ({ ...prev, igst: parseFloat(e.target.value) || 0 }))}
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                border: '1.5px solid #6D3FC0',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: '#2A1250',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textAlign: 'right',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                background: '#F6F4FA',
+                                border: '1px solid #E3DFEC',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '6px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: '#475569',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            >
+                              <span>{formatAmount(curIgst)}</span>
+                              <span title="Locked: Matches 2B" style={{ color: '#166534', fontSize: '11px' }}>🔒</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatAmount(auditingRecord.gIgst)}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isIgstMatch ? '#166534' : '#B42318' }}>
+                          {formatAmount(diffIgst)}
+                        </td>
+                      </tr>
 
-                    {/* CGST */}
-                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isCgstMatch ? '#fee2e2' : 'transparent' }}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
-                        CGST
-                      </td>
-                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                        {canEditCgst ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={auditEditState.cgst}
-                            onChange={(e) => setAuditEditState(prev => ({ ...prev, cgst: parseFloat(e.target.value) || 0 }))}
-                            style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1.5px solid #7c3aed',
-                              borderRadius: 0,
-                              fontWeight: 700,
-                              fontSize: '12.5px',
-                              textAlign: 'right',
-                              outline: 'none'
-                            }}
-                          />
-                        ) : (
-                          <span className="num-val" style={{ fontWeight: 700 }}>
-                            {formatAmount(curCgst)} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
-                        {formatAmount(auditingRecord.gCgst)}
-                      </td>
-                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: isCgstMatch ? '#15803d' : '#dc2626' }}>
-                        {formatAmount(diffCgst)}
-                      </td>
-                    </tr>
+                      {/* CGST */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !isCgstMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>
+                          CGST
+                        </td>
+                        <td style={{ padding: '7px 14px', textAlign: 'right' }}>
+                          {canEditCgst ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={auditEditState.cgst}
+                              onChange={(e) => setAuditEditState(prev => ({ ...prev, cgst: parseFloat(e.target.value) || 0 }))}
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                border: '1.5px solid #6D3FC0',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: '#2A1250',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textAlign: 'right',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                background: '#F6F4FA',
+                                border: '1px solid #E3DFEC',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '6px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: '#475569',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            >
+                              <span>{formatAmount(curCgst)}</span>
+                              <span title="Locked: Matches 2B" style={{ color: '#166534', fontSize: '11px' }}>🔒</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatAmount(auditingRecord.gCgst)}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isCgstMatch ? '#166534' : '#B42318' }}>
+                          {formatAmount(diffCgst)}
+                        </td>
+                      </tr>
 
-                    {/* SGST */}
-                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isSgstMatch ? '#fee2e2' : 'transparent' }}>
-                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
-                        SGST
-                      </td>
-                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
-                        {canEditSgst ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={auditEditState.sgst}
-                            onChange={(e) => setAuditEditState(prev => ({ ...prev, sgst: parseFloat(e.target.value) || 0 }))}
-                            style={{
-                              width: '100%',
-                              padding: '5px 8px',
-                              border: '1.5px solid #7c3aed',
-                              borderRadius: 0,
-                              fontWeight: 700,
-                              fontSize: '12.5px',
-                              textAlign: 'right',
-                              outline: 'none'
-                            }}
-                          />
-                        ) : (
-                          <span className="num-val" style={{ fontWeight: 700 }}>
-                            {formatAmount(curSgst)} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
-                          </span>
-                        )}
-                      </td>
-                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
-                        {formatAmount(auditingRecord.gSgst)}
-                      </td>
-                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: isSgstMatch ? '#15803d' : '#dc2626' }}>
-                        {formatAmount(diffSgst)}
-                      </td>
-                    </tr>
+                      {/* SGST */}
+                      <tr style={{ height: '52px', borderBottom: '1px solid #F1ECF8', background: !isSgstMatch ? '#FFF4F4' : '#ffffff' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600, color: '#475569' }}>
+                          SGST
+                        </td>
+                        <td style={{ padding: '7px 14px', textAlign: 'right' }}>
+                          {canEditSgst ? (
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={auditEditState.sgst}
+                              onChange={(e) => setAuditEditState(prev => ({ ...prev, sgst: parseFloat(e.target.value) || 0 }))}
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                border: '1.5px solid #6D3FC0',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: '#2A1250',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                textAlign: 'right',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: '100%',
+                                height: '38px',
+                                padding: '0 12px',
+                                background: '#F6F4FA',
+                                border: '1px solid #E3DFEC',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                gap: '6px',
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: '#475569',
+                                boxSizing: 'border-box',
+                                fontVariantNumeric: 'tabular-nums'
+                              }}
+                            >
+                              <span>{formatAmount(curSgst)}</span>
+                              <span title="Locked: Matches 2B" style={{ color: '#166534', fontSize: '11px' }}>🔒</span>
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, color: '#2A1250', fontVariantNumeric: 'tabular-nums' }}>
+                          {formatAmount(auditingRecord.gSgst)}
+                        </td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: isSgstMatch ? '#166534' : '#B42318' }}>
+                          {formatAmount(diffSgst)}
+                        </td>
+                      </tr>
 
-                    {/* Total Amount Row */}
-                    <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
-                      <td style={{ padding: '11px 12px', color: '#1e293b' }}>TOTAL AMOUNT</td>
-                      <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: '#350b5e', fontSize: '14px' }}>
-                        {formatAmount(curTotal)}
-                      </td>
-                      <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: '#1e1b4b', fontSize: '14px' }}>
-                        {formatAmount(auditingRecord.gTotal)}
-                      </td>
-                      <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: Math.abs(diffTotal) <= 1 ? '#15803d' : '#dc2626', fontSize: '14px' }}>
-                        {formatAmount(diffTotal)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                      {/* Total Amount Row */}
+                      <tr style={{ height: '52px', background: '#F8F6FC', fontWeight: 800, borderTop: '2px solid #E6E0F0' }}>
+                        <td style={{ padding: '12px 16px', color: '#2A1250', fontWeight: 800 }}>TOTAL AMOUNT</td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#3B1A6B', fontSize: '14px', fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+                          {formatAmount(curTotal)}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#2A1250', fontSize: '14px', fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+                          {formatAmount(auditingRecord.gTotal)}
+                        </td>
+                        <td style={{ padding: '12px 16px', textAlign: 'right', color: Math.abs(diffTotal) <= 1 ? '#166534' : '#B42318', fontSize: '14px', fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+                          {formatAmount(diffTotal)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* Audit Observation Remarks */}
                 <div style={{ marginTop: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
-                    Audit Observation / Remark (Optional):
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#3B1A6B', marginBottom: '6px' }}>
+                    Audit Observation / Remark (Optional)
                   </label>
-                  <input
-                    type="text"
+                  <textarea
                     value={auditEditState.note}
                     onChange={(e) => setAuditEditState(prev => ({ ...prev, note: e.target.value }))}
                     placeholder="Enter audit explanation or reference..."
                     style={{
                       width: '100%',
-                      padding: '8px 12px',
-                      border: '1.5px solid #cbd5e1',
-                      borderRadius: 0,
-                      fontSize: '12.5px',
-                      outline: 'none'
+                      height: '80px',
+                      padding: '10px 12px',
+                      border: '1.5px solid #DCCFF3',
+                      borderRadius: '10px',
+                      background: '#ffffff',
+                      color: '#1E293B',
+                      fontSize: '13px',
+                      fontFamily: "'Inter', sans-serif",
+                      outline: 'none',
+                      resize: 'none',
+                      boxSizing: 'border-box'
                     }}
                   />
                 </div>
 
                 {/* Audit Log Trail (Requirement 7) */}
                 {invoiceLogs.length > 0 && (
-                  <div style={{ marginTop: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 14px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#350b5e', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                  <div style={{ marginTop: '16px', background: '#FBFAFD', border: '1px solid #EBE4F3', borderRadius: '10px', padding: '12px 16px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#3B1A6B', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
                       <span>📋</span>
                       <span>Audit Change Trail (Audit Log History):</span>
-                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>({invoiceLogs.length} changes recorded)</span>
+                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>({invoiceLogs.length} changes recorded)</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '130px', overflowY: 'auto' }}>
                       {invoiceLogs.map(log => (
-                        <div key={log.id} style={{ fontSize: '12px', background: '#ffffff', border: '1px solid #e2e8f0', padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={log.id} style={{ fontSize: '12px', background: '#ffffff', border: '1px solid #EAE5F2', borderRadius: '6px', padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <div>
-                            <strong style={{ color: '#0f172a' }}>{log.field}:</strong>{' '}
-                            <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>{log.oldValue}</span>{' '}
+                            <strong style={{ color: '#2A1250' }}>{log.field}:</strong>{' '}
+                            <span style={{ color: '#B42318', textDecoration: 'line-through' }}>{log.oldValue}</span>{' '}
                             ➔{' '}
-                            <span style={{ color: '#15803d', fontWeight: 700 }}>{log.newValue}</span>
+                            <span style={{ color: '#166534', fontWeight: 700 }}>{log.newValue}</span>
                           </div>
-                          <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                          <div style={{ fontSize: '11px', color: '#64748B', whiteSpace: 'nowrap', marginLeft: '12px' }}>
                             by <strong>{log.user}</strong> on {log.timestamp}
                           </div>
                         </div>
@@ -2823,19 +3327,61 @@ export default function ReconciliationView({
               </div>
 
               {/* Footer */}
-              <div className="reco-modal-footer">
+              <div
+                style={{
+                  padding: '14px 24px',
+                  background: '#FBFAFD',
+                  borderTop: '1px solid #EBE6F3',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}
+              >
                 <button
                   type="button"
-                  className="btn-reco-cancel"
                   onClick={() => setAuditingRecord(null)}
+                  style={{
+                    height: '42px',
+                    padding: '0 20px',
+                    borderRadius: '8px',
+                    background: '#ffffff',
+                    color: '#475569',
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#F8FAFC'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  className="btn-reco-action"
-                  style={{ background: '#16a34a' }}
                   onClick={() => handleSaveAudit()}
+                  style={{
+                    height: '42px',
+                    padding: '0 22px',
+                    borderRadius: '8px',
+                    background: '#15803D',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(21, 128, 61, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#166534'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#15803D'}
                 >
                   Save Audit
                 </button>

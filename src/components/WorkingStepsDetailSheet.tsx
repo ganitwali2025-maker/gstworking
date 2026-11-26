@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { useLiveReconciliation } from '../services/recoSyncService';
+import { loadRegisterRows, REGISTER_TABS } from '../services/registerService';
 
 export type WorkingDetailCategory = 'matched' | 'not-in-book' | 'not-in-2b';
 
@@ -118,6 +119,7 @@ export default function WorkingStepsDetailSheet({
   workingMonth = 'Oct-2026'
 }: WorkingStepsDetailSheetProps) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Live one-way sync with Reco sheet engine
   const recoData = useLiveReconciliation(workingMonth);
@@ -231,6 +233,24 @@ export default function WorkingStepsDetailSheet({
       statusPillBorder: '#fde68a'
     };
   }, [category]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        loadRegisterRows(REGISTER_TABS.ITC_PURCHASE),
+        loadRegisterRows(REGISTER_TABS.GSTR2B),
+        new Promise((resolve) => setTimeout(resolve, 500))
+      ]);
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('register-synced', { detail: { tab: 'all' } }));
+      showToast(`${config.title} refreshed`);
+    } catch {
+      showToast('Data refreshed');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleExportExcel = () => {
     try {
@@ -459,6 +479,37 @@ export default function WorkingStepsDetailSheet({
           <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
             Showing {filteredRows.length} of {categoryRows.length} records
           </span>
+          <button
+            type="button"
+            className="btn-gstr1 btn-refresh"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: isRefreshing ? 'not-allowed' : 'pointer'
+            }}
+            title="Reload latest reconciliation data"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={isRefreshing ? 'spin-icon' : ''}
+            >
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
           <button
             type="button"
             onClick={handleExportExcel}

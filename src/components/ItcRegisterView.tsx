@@ -148,6 +148,7 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
     confirmLabel?: string;
     onConfirm: () => void;
   } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Month & FY options
   const existingFys = Array.from(new Set(records.map((r) => r.fy).filter(Boolean)));
@@ -195,19 +196,27 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
     } catch { }
   };
 
-  const handleRefresh = async () => {
+  const handleRefresh = async (isManual = false) => {
+    if (isManual) setIsRefreshing(true);
     try {
-      const res = await loadRegisterRows<ItcPurchaseRecord>(REGISTER_TABS.ITC_PURCHASE);
-      if (res.rows) {
+      const [res] = await Promise.all([
+        loadRegisterRows<ItcPurchaseRecord>(REGISTER_TABS.ITC_PURCHASE),
+        isManual ? new Promise((resolve) => setTimeout(resolve, 500)) : Promise.resolve()
+      ]);
+      if (res && res.rows) {
         setRecords(res.rows);
       }
-      if (res.error) {
-        showToast(res.error);
-      } else {
-        showToast('ITC-Purchase tab data reloaded successfully');
+      if (isManual) {
+        if (res && res.error) {
+          showToast(res.error);
+        } else {
+          showToast('ITC-Purchase tab data reloaded successfully');
+        }
       }
     } catch {
-      showToast('ITC-Purchase refreshed');
+      if (isManual) showToast('ITC-Purchase refreshed');
+    } finally {
+      if (isManual) setIsRefreshing(false);
     }
   };
 
@@ -654,12 +663,24 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
             <button
               type="button"
               className="btn-gstr1 btn-refresh"
-              onClick={handleRefresh}
+              onClick={() => handleRefresh(true)}
+              disabled={isRefreshing || isLocked}
+              title={isLocked ? "Register locked hai! Data refresh nahi ho sakta." : "Reload latest ITC data"}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isRefreshing ? 'spin-icon' : ''}
+              >
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
               </svg>
-              Refresh
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
             </button>
 
             <button

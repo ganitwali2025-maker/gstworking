@@ -111,6 +111,7 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
   });
 
   const [isLocked, setIsLocked] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingRecord, setEditingRecord] = useState<RcmRecord | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -158,19 +159,27 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
   const selectedFy = fy || 'ALL';
   const selectedMonth = month || 'ALL';
 
-  const handleRefresh = async () => {
+  const handleRefresh = async (isManual = false) => {
+    if (isManual) setIsRefreshing(true);
     try {
-      const res = await loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM);
-      if (res.rows) {
+      const [res] = await Promise.all([
+        loadRegisterRows<RcmRecord>(REGISTER_TABS.RCM),
+        isManual ? new Promise((resolve) => setTimeout(resolve, 500)) : Promise.resolve()
+      ]);
+      if (res && res.rows) {
         setRecords(res.rows);
       }
-      if (res.error) {
-        notify(res.error);
-      } else {
-        notify('RCM tab data reloaded successfully');
+      if (isManual) {
+        if (res && res.error) {
+          notify(res.error);
+        } else {
+          notify('RCM tab data reloaded successfully');
+        }
       }
     } catch {
-      notify('RCM refreshed');
+      if (isManual) notify('RCM refreshed');
+    } finally {
+      if (isManual) setIsRefreshing(false);
     }
   };
 
@@ -635,12 +644,24 @@ export default function RcmRegisterView({ showToast, fy, setFy, month, setMonth 
             <button
               type="button"
               className="btn-gstr1 btn-refresh"
-              onClick={handleRefresh}
+              onClick={() => handleRefresh(true)}
+              disabled={isRefreshing || isLocked}
+              title={isLocked ? "Register locked hai! Data refresh nahi ho sakta." : "Reload latest RCM data"}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isRefreshing ? 'spin-icon' : ''}
+              >
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
               </svg>
-              Refresh
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
             </button>
 
             <button

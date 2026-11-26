@@ -163,6 +163,7 @@ export default function Gstr2bRegisterView({
     confirmLabel?: string;
     onConfirm: () => void;
   } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   const notify = (msg: string) => {
     if (showToast) showToast(msg);
@@ -214,19 +215,27 @@ export default function Gstr2bRegisterView({
     } catch {}
   };
 
-  const handleRefresh = async () => {
+  const handleRefresh = async (isManual = false) => {
+    if (isManual) setIsRefreshing(true);
     try {
-      const res = await loadRegisterRows<Gstr2bRecord>(REGISTER_TABS.GSTR2B);
-      if (res.rows) {
+      const [res] = await Promise.all([
+        loadRegisterRows<Gstr2bRecord>(REGISTER_TABS.GSTR2B),
+        isManual ? new Promise((resolve) => setTimeout(resolve, 500)) : Promise.resolve()
+      ]);
+      if (res && res.rows) {
         setRecords(res.rows);
       }
-      if (res.error) {
-        notify(res.error);
-      } else {
-        notify('GSTR-2B tab data reloaded successfully');
+      if (isManual) {
+        if (res && res.error) {
+          notify(res.error);
+        } else {
+          notify('GSTR-2B tab data reloaded successfully');
+        }
       }
     } catch {
-      notify('GSTR-2B refreshed');
+      if (isManual) notify('GSTR-2B refreshed');
+    } finally {
+      if (isManual) setIsRefreshing(false);
     }
   };
 
@@ -767,12 +776,24 @@ export default function Gstr2bRegisterView({
             <button
               type="button"
               className="btn-gstr1 btn-refresh"
-              onClick={handleRefresh}
+              onClick={() => handleRefresh(true)}
+              disabled={isRefreshing || isLocked}
+              title={isLocked ? "Register locked hai! Data refresh nahi ho sakta." : "Reload latest GSTR-2B data"}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isRefreshing ? 'spin-icon' : ''}
+              >
                 <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
               </svg>
-              Refresh
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
             </button>
 
             <button
