@@ -6,7 +6,7 @@ export type WorkingDetailCategory = 'matched' | 'not-in-book' | 'not-in-2b';
 
 interface WorkingStepsDetailSheetProps {
   category: WorkingDetailCategory;
-  onBack: () => void;
+  onBack?: () => void;
   showToast: (msg: string) => void;
   workingMonth?: string;
 }
@@ -305,38 +305,6 @@ export default function WorkingStepsDetailSheet({
             </p>
           </div>
         </div>
-
-        {/* ONLY "Back to Steps" button */}
-        <button
-          type="button"
-          onClick={onBack}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: '#ffffff',
-            color: '#350b5e',
-            border: '1.5px solid #350b5e',
-            padding: '8px 18px',
-            fontSize: '13px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            borderRadius: 0,
-            transition: 'all 0.15s ease'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#f5f3ff';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = '#ffffff';
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
-          Back to Steps
-        </button>
       </div>
 
       {/* 2. Total Card Box (with left colored border & 4 metrics) */}

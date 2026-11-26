@@ -19,7 +19,7 @@ const TITLES: Record<string, [string, string]> = {
 export default function RegisterPeriodBar({
   view
 }: RegisterPeriodBarProps) {
-  if (['g1', 'itc-reg', 'rcm', 'g2b', 'rec'].includes(view)) return null;
+  if (['g1', 'itc-reg', 'rcm', 'g2b', 'rec', 'reco-matched', 'reco-missing-books', 'reco-missing-2b'].includes(view)) return null;
 
   const titleInfo = TITLES[view] || TITLES.itc;
 

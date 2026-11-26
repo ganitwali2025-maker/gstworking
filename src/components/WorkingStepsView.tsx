@@ -60,8 +60,6 @@ export default function WorkingStepsView({
   fy = 'FY 2026–27',
   month
 }: WorkingStepsViewProps) {
-  const [activeDetailCategory, setActiveDetailCategory] = useState<WorkingDetailCategory | null>(null);
-
   const workingMonth = useMemo(() => {
     let year = '2026';
     if (fy) {
@@ -106,7 +104,13 @@ export default function WorkingStepsView({
   };
 
   const handleOpenCategory = (targetTab: WorkingDetailCategory) => {
-    setActiveDetailCategory(targetTab);
+    if (targetTab === 'matched') {
+      setView('reco-matched');
+    } else if (targetTab === 'not-in-book') {
+      setView('reco-missing-books');
+    } else if (targetTab === 'not-in-2b') {
+      setView('reco-missing-2b');
+    }
   };
 
   const getStepIcon = (index: number) => {
@@ -188,17 +192,6 @@ export default function WorkingStepsView({
       </svg>
     );
   };
-
-  if (activeDetailCategory) {
-    return (
-      <WorkingStepsDetailSheet
-        category={activeDetailCategory}
-        onBack={() => setActiveDetailCategory(null)}
-        showToast={showToast}
-        workingMonth={workingMonth}
-      />
-    );
-  }
 
   return (
     <>

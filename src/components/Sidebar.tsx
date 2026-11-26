@@ -7,7 +7,17 @@ interface SidebarProps {
   isCollapsed: boolean;
 }
 
-const WORKING_STEP_VIEWS: ViewType[] = ['steps', 'g1', 'itc-reg', 'rcm', 'g2b', 'rec'];
+const WORKING_STEP_VIEWS: ViewType[] = [
+  'steps',
+  'g1',
+  'itc-reg',
+  'rcm',
+  'g2b',
+  'rec',
+  'reco-matched',
+  'reco-missing-books',
+  'reco-missing-2b'
+];
 
 export default function Sidebar({ view, setView, isCollapsed }: SidebarProps) {
   const navItems: { id: ViewType; label: string; icon: React.ReactNode }[] = [

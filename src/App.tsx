@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useGstStore } from './hooks/useGstStore';
 import { initAutoSyncRetryListener } from './services/registerService';
 import Sidebar from './components/Sidebar';
@@ -13,6 +13,7 @@ import RcmRegisterView from './components/RcmRegisterView';
 import ReconciliationView from './components/ReconciliationView';
 import ItcRegisterView from './components/ItcRegisterView';
 import Gstr2bRegisterView from './components/Gstr2bRegisterView';
+import WorkingStepsDetailSheet from './components/WorkingStepsDetailSheet';
 
 export default function App() {
   const {
@@ -48,6 +49,30 @@ export default function App() {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const toggleSidebarCollapse = () => setIsSidebarCollapsed((prev) => !prev);
+
+  const workingMonth = useMemo(() => {
+    let year = '2026';
+    if (fy) {
+      const match = fy.replace(/[^0-9]/g, '').slice(0, 4);
+      if (match) year = match;
+    }
+    let m = (month || '').trim();
+    if (!m || m.toUpperCase() === 'ALL') {
+      m = 'Oct';
+    }
+    const MONTH_MAP: Record<string, string> = {
+      jan: 'Jan', january: 'Jan', feb: 'Feb', february: 'Feb',
+      mar: 'Mar', march: 'Mar', apr: 'Apr', april: 'Apr',
+      may: 'May', jun: 'Jun', june: 'Jun', jul: 'Jul', july: 'Jul',
+      aug: 'Aug', august: 'Aug', sep: 'Sep', sept: 'Sep', september: 'Sep',
+      oct: 'Oct', october: 'Oct', nov: 'Nov', november: 'Nov', dec: 'Dec'
+    };
+    const stdMonth = MONTH_MAP[m.toLowerCase()] || (m ? m.charAt(0).toUpperCase() + m.slice(1, 3) : 'Oct');
+    if (['Jan', 'Feb', 'Mar'].includes(stdMonth) && year === '2026') {
+      year = '2027';
+    }
+    return `${stdMonth}-${year}`;
+  }, [fy, month]);
 
   useEffect(() => {
     initAutoSyncRetryListener();
@@ -139,7 +164,32 @@ export default function App() {
           {view === 'g2b' && <Gstr2bRegisterView showToast={showToast} fy={fy} setFy={setFy} month={month} setMonth={setMonth} />}
           {view === 'rec' && <ReconciliationView showToast={showToast} fy={fy} month={month} monthlyData={monthlyData} />}
 
-          {!['g1', 'itc-reg', 'rcm', 'g2b', 'rec'].includes(view) && (
+          {view === 'reco-matched' && (
+            <WorkingStepsDetailSheet
+              category="matched"
+              onBack={() => setView('steps')}
+              showToast={showToast}
+              workingMonth={workingMonth}
+            />
+          )}
+          {view === 'reco-missing-books' && (
+            <WorkingStepsDetailSheet
+              category="not-in-book"
+              onBack={() => setView('steps')}
+              showToast={showToast}
+              workingMonth={workingMonth}
+            />
+          )}
+          {view === 'reco-missing-2b' && (
+            <WorkingStepsDetailSheet
+              category="not-in-2b"
+              onBack={() => setView('steps')}
+              showToast={showToast}
+              workingMonth={workingMonth}
+            />
+          )}
+
+          {!['g1', 'itc-reg', 'rcm', 'g2b', 'rec', 'reco-matched', 'reco-missing-books', 'reco-missing-2b'].includes(view) && (
             <p className="note">Yeh sample data hai. Real data aane par numbers yahin update honge.</p>
           )}
         </div>

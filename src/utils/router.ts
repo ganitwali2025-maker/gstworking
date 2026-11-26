@@ -9,7 +9,10 @@ export const ROUTE_PATH_MAP: Record<ViewType, string> = {
   rcm: '/rcm',
   g2b: '/gstr2b',
   rec: '/reconciliation',
-  set: '/settings'
+  set: '/settings',
+  'reco-matched': '/reco-matched',
+  'reco-missing-books': '/missing-in-books',
+  'reco-missing-2b': '/missing-in-2b'
 };
 
 export const PATH_VIEW_MAP: Record<string, ViewType> = {
@@ -22,6 +25,9 @@ export const PATH_VIEW_MAP: Record<string, ViewType> = {
   '/g2b': 'g2b',
   '/reconciliation': 'rec',
   '/settings': 'set',
+  '/reco-matched': 'reco-matched',
+  '/missing-in-books': 'reco-missing-books',
+  '/missing-in-2b': 'reco-missing-2b',
   // Direct aliases for convenience
   '/itc': 'itc',
   '/liab': 'liab',
@@ -32,7 +38,10 @@ export const PATH_VIEW_MAP: Record<string, ViewType> = {
   '/gstr2b': 'g2b',
   '/gstr-2b': 'g2b',
   '/rec': 'rec',
-  '/set': 'set'
+  '/set': 'set',
+  '/matched': 'reco-matched',
+  '/not-in-books': 'reco-missing-books',
+  '/not-in-2b': 'reco-missing-2b'
 };
 
 /**

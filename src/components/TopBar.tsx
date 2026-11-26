@@ -55,7 +55,7 @@ export default function TopBar({
       </div>
       <div className="right">
         {/* Inner Register Pages: Show colorful, compact '← Back to Steps' */}
-        {['g1', 'itc-reg', 'rcm', 'g2b', 'rec'].includes(view) && (
+        {['g1', 'itc-reg', 'rcm', 'g2b', 'rec', 'reco-matched', 'reco-missing-books', 'reco-missing-2b'].includes(view) && (
           <button
             type="button"
             className="btn-back-steps"

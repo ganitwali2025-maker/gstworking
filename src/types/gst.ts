@@ -1,4 +1,16 @@
-export type ViewType = 'itc' | 'liab' | 'steps' | 'g1' | 'set' | 'rcm' | 'rec' | 'itc-reg' | 'g2b';
+export type ViewType =
+  | 'itc'
+  | 'liab'
+  | 'steps'
+  | 'g1'
+  | 'set'
+  | 'rcm'
+  | 'rec'
+  | 'itc-reg'
+  | 'g2b'
+  | 'reco-matched'
+  | 'reco-missing-books'
+  | 'reco-missing-2b';
 
 export interface InvoiceRecord {
   id: string;
