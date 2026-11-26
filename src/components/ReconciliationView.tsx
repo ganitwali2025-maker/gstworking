@@ -507,12 +507,14 @@ interface ReconciliationViewProps {
   showToast?: (msg: string) => void;
   fy?: string;
   month?: string;
+  monthlyData?: any;
 }
 
 export default function ReconciliationView({
   showToast = () => { },
   fy = 'FY 2026–27',
-  month
+  month,
+  monthlyData
 }: ReconciliationViewProps) {
   // Filters & Search
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
