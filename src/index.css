@@ -3419,3 +3419,16 @@ tfoot td {
   font-size: 10px !important;
   line-height: 1.2 !important;
 }
+
+/* ============================================================= */
+/* RECONCILIATION ROW TINTS (NOT MATCH ONLY: STATUS TO SUPPLIER)  */
+/* ============================================================= */
+
+/* Sirf Not Match rows me: Status se Supplier Name tak ke cells faint red (#FEF2F2) honge */
+/* Books GST aur 2B GST ke columns apne original lavender (#F3EBFE) me hi rahenge */
+.reco-table tbody tr.reco-row-not-match td:not(.reco-gst-cell):not(.reco-actions-col),
+.reco-table tbody tr.reco-row-not-match:hover td:not(.reco-gst-cell):not(.reco-actions-col) {
+  background: #FEF2F2 !important;
+  border-bottom: 1px solid #FEE2E2 !important;
+}
+
