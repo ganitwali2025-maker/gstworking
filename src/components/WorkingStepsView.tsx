@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { StepItem, ViewType } from '../types/gst';
 import WorkingStepsDetailSheet, { WorkingDetailCategory } from './WorkingStepsDetailSheet';
 import RegisterPeriodBar from './RegisterPeriodBar';
+import { useLiveReconciliation } from '../services/recoSyncService';
 
 interface WorkingStepsViewProps {
   steps: StepItem[];
   toggleStepDone?: (id: number) => void;
   setView: (view: ViewType) => void;
   showToast: (msg: string) => void;
+  fy?: string;
+  month?: string;
 }
 
 interface ExtraRecoCard {
@@ -50,8 +53,41 @@ const EXTRA_RECO_CARDS: ExtraRecoCard[] = [
   }
 ];
 
-export default function WorkingStepsView({ steps, setView, showToast }: WorkingStepsViewProps) {
+export default function WorkingStepsView({
+  steps,
+  setView,
+  showToast,
+  fy = 'FY 2026–27',
+  month
+}: WorkingStepsViewProps) {
   const [activeDetailCategory, setActiveDetailCategory] = useState<WorkingDetailCategory | null>(null);
+
+  const workingMonth = useMemo(() => {
+    let year = '2026';
+    if (fy) {
+      const match = fy.replace(/[^0-9]/g, '').slice(0, 4);
+      if (match) year = match;
+    }
+    let m = (month || '').trim();
+    if (!m || m.toUpperCase() === 'ALL') {
+      m = 'Oct';
+    }
+    const MONTH_MAP: Record<string, string> = {
+      jan: 'Jan', january: 'Jan', feb: 'Feb', february: 'Feb',
+      mar: 'Mar', march: 'Mar', apr: 'Apr', april: 'Apr',
+      may: 'May', jun: 'Jun', june: 'Jun', jul: 'Jul', july: 'Jul',
+      aug: 'Aug', august: 'Aug', sep: 'Sep', sept: 'Sep', september: 'Sep',
+      oct: 'Oct', october: 'Oct', nov: 'Nov', november: 'Nov', dec: 'Dec'
+    };
+    const stdMonth = MONTH_MAP[m.toLowerCase()] || (m ? m.charAt(0).toUpperCase() + m.slice(1, 3) : 'Oct');
+    if (['Jan', 'Feb', 'Mar'].includes(stdMonth) && year === '2026') {
+      year = '2027';
+    }
+    return `${stdMonth}-${year}`;
+  }, [fy, month]);
+
+  // Live one-way sync with Reco sheet
+  const recoData = useLiveReconciliation(workingMonth);
 
   const handleOpenModule = (index: number, stepTitle: string) => {
     if (index === 0) {
@@ -159,6 +195,7 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
         category={activeDetailCategory}
         onBack={() => setActiveDetailCategory(null)}
         showToast={showToast}
+        workingMonth={workingMonth}
       />
     );
   }
@@ -233,13 +270,21 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
         {/* 3 Extra Reconciliation Status Cards (Without "Step" badge) */}
         {EXTRA_RECO_CARDS.map((card) => {
           const isGreen = card.btnColor === 'green';
+          let cardCount = 0;
+          if (card.targetTab === 'matched') {
+            cardCount = recoData.summary.matchedCount;
+          } else if (card.targetTab === 'not-in-book') {
+            cardCount = recoData.summary.notInBookCount;
+          } else if (card.targetTab === 'not-in-2b') {
+            cardCount = recoData.summary.notIn2bCount;
+          }
 
           return (
             <div
               key={card.id}
               className={`step-card ${isGreen ? 'step-card-green' : 'step-card-red'}`}
             >
-              {/* Top Header: Icon only, NO Step text */}
+              {/* Top Header: Icon on left, Live Count on right */}
               <div className="step-card-header">
                 <div
                   className={`step-card-icon-box ${isGreen ? 'icon-green' : 'icon-red'}`}
@@ -247,6 +292,16 @@ export default function WorkingStepsView({ steps, setView, showToast }: WorkingS
                 >
                   {getExtraCardIcon(card.id)}
                 </div>
+                <span
+                  className="step-card-badge"
+                  style={{
+                    color: isGreen ? '#15803d' : '#b91c1c',
+                    fontWeight: 700,
+                    fontSize: '13px'
+                  }}
+                >
+                  {cardCount} Invoices
+                </span>
               </div>
 
               {/* Middle Body: Title, English Detail, Hindi Detail */}

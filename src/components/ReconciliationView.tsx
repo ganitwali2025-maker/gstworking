@@ -1231,6 +1231,40 @@ export default function ReconciliationView({
     };
   }, [reconciledInvoices]);
 
+  // Broadcast live reconciliation state for external cards & views (one-way sync)
+  useEffect(() => {
+    try {
+      const payload = {
+        workingMonth,
+        updatedAt: Date.now(),
+        summary: {
+          totalCount: summaryKpis.totalCount,
+          matchedCount: summaryKpis.matchedCount,
+          notMatchCount: summaryKpis.notMatchCount,
+          notIn2bCount: summaryKpis.notIn2bCount,
+          notInBookCount: summaryKpis.notInBookCount,
+          debitNoteCount: summaryKpis.debitNoteCount
+        },
+        invoices: reconciledInvoices.map((r) => ({
+          id: r.id,
+          status: r.status,
+          month2b: r.month2b,
+          date: r.date,
+          invNo: r.invNo,
+          gstin: r.gstin,
+          supplierName: r.supplierName,
+          taxable: r.status === 'Not in Purchase Register' ? r.gTaxable : r.bTaxable,
+          igst: r.status === 'Not in Purchase Register' ? r.gIgst : r.bIgst,
+          cgst: r.status === 'Not in Purchase Register' ? r.gCgst : r.bCgst,
+          sgst: r.status === 'Not in Purchase Register' ? r.gSgst : r.bSgst,
+          total: r.status === 'Not in Purchase Register' ? r.gTotal : r.bTotal
+        }))
+      };
+      localStorage.setItem('gst_reco_active_data_v1', JSON.stringify(payload));
+      window.dispatchEvent(new CustomEvent('reco-data-updated', { detail: payload }));
+    } catch {}
+  }, [reconciledInvoices, summaryKpis, workingMonth]);
+
   // Verification Check: Total Invoices = Matched + Not Match + Not in 2B + Debit Note = Books Count
   const isCheckPassed = useMemo(() => {
     const sum = summaryKpis.matchedCount + summaryKpis.notMatchCount + summaryKpis.notIn2bCount + summaryKpis.debitNoteCount;

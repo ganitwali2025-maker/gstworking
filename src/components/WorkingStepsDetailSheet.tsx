@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import defaultRegisters from '../data/defaultRegisters.json';
+import { useLiveReconciliation } from '../services/recoSyncService';
 
 export type WorkingDetailCategory = 'matched' | 'not-in-book' | 'not-in-2b';
 
@@ -119,258 +119,27 @@ export default function WorkingStepsDetailSheet({
 }: WorkingStepsDetailSheetProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 1. Load Books Data
-  const booksRecords = useMemo<RawBookRecord[]>(() => {
-    try {
-      let rawList: any[] = [];
-      const raw = localStorage.getItem('itc_register_v1');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          rawList = parsed;
-        }
-      }
-      if (rawList.length === 0 && Array.isArray((defaultRegisters as any)?.itc)) {
-        rawList = (defaultRegisters as any).itc;
-      }
+  // Live one-way sync with Reco sheet engine
+  const recoData = useLiveReconciliation(workingMonth);
 
-      if (rawList.length > 0) {
-        return rawList.map((item: any, idx: number) => {
-          let rawTaxable = typeof item.t === 'number' ? item.t : (typeof item.taxable === 'number' ? item.taxable : 0);
-          let rawIgst = typeof item.i === 'number' ? item.i : (typeof item.igst === 'number' ? item.igst : 0);
-          let rawCgst = typeof item.c === 'number' ? item.c : (typeof item.cgst === 'number' ? item.cgst : 0);
-          let rawSgst = typeof item.s === 'number' ? item.s : (typeof item.sgst === 'number' ? item.sgst : 0);
-          let rawCess = typeof item.cess === 'number' ? item.cess : 0;
-
-          const sumShift = rawIgst + rawCgst + rawSgst + rawCess;
-          if (sumShift !== 0 && Math.abs(rawTaxable - sumShift) < 10) {
-            rawTaxable = rawIgst;
-            rawIgst = rawCgst;
-            rawCgst = rawSgst;
-            rawSgst = rawCess;
-          }
-
-          const isPaise = Math.abs(rawTaxable) >= 100000;
-          const monthFormatted = parseRecordMonth(item, 'Oct');
-
-          return {
-            id: item.id || `book-${idx}`,
-            date: item.d || '',
-            invNo: item.invNo || item.n || '',
-            gstin: item.g || item.gstin || '',
-            supplierName: item.p || item.tradeName || item.party || '',
-            taxable: isPaise ? rawTaxable / 100 : rawTaxable,
-            igst: isPaise ? rawIgst / 100 : rawIgst,
-            cgst: isPaise ? rawCgst / 100 : rawCgst,
-            sgst: isPaise ? rawSgst / 100 : rawSgst,
-            month: monthFormatted
-          };
-        });
-      }
-    } catch { }
-    return [];
-  }, []);
-
-  // 2. Load GSTR-2B Data
-  const gstr2bRecords = useMemo<Raw2bRecord[]>(() => {
-    try {
-      let rawList: any[] = [];
-      const raw = localStorage.getItem('gstr2b_register_v1');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          rawList = parsed;
-        }
-      }
-      if (rawList.length === 0 && Array.isArray((defaultRegisters as any)?.g2b)) {
-        rawList = (defaultRegisters as any).g2b;
-      }
-
-      if (rawList.length > 0) {
-        return rawList.map((item: any, idx: number) => {
-          const rawTaxable = typeof item.taxable === 'number' ? item.taxable : (typeof item.t === 'number' ? item.t : 0);
-          const rawIgst = typeof item.igst === 'number' ? item.igst : (typeof item.i === 'number' ? item.i : 0);
-          const rawCgst = typeof item.cgst === 'number' ? item.cgst : (typeof item.c === 'number' ? item.c : 0);
-          const rawSgst = typeof item.sgst === 'number' ? item.sgst : (typeof item.s === 'number' ? item.s : 0);
-          const isPaise = Math.abs(rawTaxable) >= 100000;
-          const monthFormatted = parseRecordMonth(item, 'Oct');
-
-          return {
-            id: item.id || `g2b-${idx}`,
-            date: item.d || '',
-            invNo: item.invNo || item.n || '',
-            gstin: item.gstin || item.g || '',
-            supplierName: item.tradeName || item.p || item.supplierName || '',
-            taxable: isPaise ? rawTaxable / 100 : rawTaxable,
-            igst: isPaise ? rawIgst / 100 : rawIgst,
-            cgst: isPaise ? rawCgst / 100 : rawCgst,
-            sgst: isPaise ? rawSgst / 100 : rawSgst,
-            month: monthFormatted
-          };
-        });
-      }
-    } catch { }
-    return [];
-  }, []);
-
-  // 3. Compute Data per Category
+  // Compute Data per Category
   const { categoryRows, totalInvoicesContext, categoryCount, matchPercentage } = useMemo(() => {
-    const paired2bIds = new Set<string>();
-    const workingBooks = booksRecords.filter((b) => b.month === workingMonth);
-    const regularBooks = workingBooks.filter(
-      (b) => !(b.taxable < 0 || b.igst < 0 || b.cgst < 0 || b.sgst < 0)
-    );
-
-    const sorted2bRecords = [...gstr2bRecords].sort(
-      (a, b) => getMonthPriority(a.month, workingMonth) - getMonthPriority(b.month, workingMonth)
-    );
-
-    const matchedList: DetailSheetRow[] = [];
-    const unpairedBooksStage1: RawBookRecord[] = [];
-
-    // Step 1: Exact 6-field Match
-    regularBooks.forEach((b) => {
-      const bGstinClean = cleanStr(b.gstin);
-      const bInvClean = cleanInv(b.invNo);
-
-      let matched2b: Raw2bRecord | undefined;
-      for (const g of sorted2bRecords) {
-        if (paired2bIds.has(g.id)) continue;
-        const gGstinClean = cleanStr(g.gstin);
-        const gInvClean = cleanInv(g.invNo);
-
-        const gstinMatch = bGstinClean === gGstinClean;
-        const invMatch = bInvClean === gInvClean;
-        const taxMatch = Math.abs(round2(b.taxable - g.taxable)) <= 1.00;
-        const igstMatch = Math.abs(round2(b.igst - g.igst)) <= 1.00;
-        const cgstMatch = Math.abs(round2(b.cgst - g.cgst)) <= 1.00;
-        const sgstMatch = Math.abs(round2(b.sgst - g.sgst)) <= 1.00;
-
-        if (gstinMatch && invMatch && taxMatch && igstMatch && cgstMatch && sgstMatch) {
-          matched2b = g;
-          break;
-        }
-      }
-
-      if (matched2b) {
-        paired2bIds.add(matched2b.id);
-        const bTotal = round2(b.taxable + b.igst + b.cgst + b.sgst);
-        matchedList.push({
-          id: b.id,
-          status: 'Matched',
-          month2b: matched2b.month || workingMonth,
-          date: b.date,
-          invNo: b.invNo,
-          gstin: b.gstin,
-          supplierName: b.supplierName,
-          taxable: b.taxable,
-          igst: b.igst,
-          cgst: b.cgst,
-          sgst: b.sgst,
-          total: bTotal
-        });
-      } else {
-        unpairedBooksStage1.push(b);
-      }
-    });
-
-    // Step 2: Key Match (GSTIN + InvNo)
-    const unpairedBooksStage2: RawBookRecord[] = [];
-    unpairedBooksStage1.forEach((b) => {
-      const bGstinClean = cleanStr(b.gstin);
-      const bInvClean = cleanInv(b.invNo);
-      let paired2b: Raw2bRecord | undefined;
-      for (const g of sorted2bRecords) {
-        if (paired2bIds.has(g.id)) continue;
-        if (bGstinClean === cleanStr(g.gstin) && bInvClean === cleanInv(g.invNo)) {
-          paired2b = g;
-          break;
-        }
-      }
-      if (paired2b) {
-        paired2bIds.add(paired2b.id);
-      } else {
-        unpairedBooksStage2.push(b);
-      }
-    });
-
-    // Step 3: Fuzzy Match (GSTIN + Taxable)
-    const unpairedBooksStage3: RawBookRecord[] = [];
-    unpairedBooksStage2.forEach((b) => {
-      const bGstinClean = cleanStr(b.gstin);
-      let paired2b: Raw2bRecord | undefined;
-      for (const g of sorted2bRecords) {
-        if (paired2bIds.has(g.id)) continue;
-        if (bGstinClean === cleanStr(g.gstin) && Math.abs(round2(b.taxable - g.taxable)) <= 1.00) {
-          paired2b = g;
-          break;
-        }
-      }
-      if (paired2b) {
-        paired2bIds.add(paired2b.id);
-      } else {
-        unpairedBooksStage3.push(b);
-      }
-    });
-
-    // Step 4: Not in GSTR-2B (Unpaired Books)
-    const notIn2bList: DetailSheetRow[] = unpairedBooksStage3.map((b) => {
-      const bTotal = round2(b.taxable + b.igst + b.cgst + b.sgst);
-      return {
-        id: b.id,
-        status: 'Not in GSTR-2B',
-        month2b: '-',
-        date: b.date,
-        invNo: b.invNo,
-        gstin: b.gstin,
-        supplierName: b.supplierName,
-        taxable: b.taxable,
-        igst: b.igst,
-        cgst: b.cgst,
-        sgst: b.sgst,
-        total: bTotal
-      };
-    });
-
-    // Step 5: Not in Purchase Register (Unpaired 2B for Working Month)
-    const notInBookList: DetailSheetRow[] = [];
-    const workingMonth2bRecords = gstr2bRecords.filter((g) => g.month === workingMonth);
-    workingMonth2bRecords.forEach((g) => {
-      if (!paired2bIds.has(g.id)) {
-        const gTotal = round2(g.taxable + g.igst + g.cgst + g.sgst);
-        notInBookList.push({
-          id: g.id,
-          status: 'Not in Purchase Register',
-          month2b: g.month || workingMonth,
-          date: g.date,
-          invNo: g.invNo,
-          gstin: g.gstin,
-          supplierName: g.supplierName,
-          taxable: g.taxable,
-          igst: g.igst,
-          cgst: g.cgst,
-          sgst: g.sgst,
-          total: gTotal
-        });
-      }
-    });
-
     let selectedRows: DetailSheetRow[] = [];
     let totalContext = 0;
     let count = 0;
 
     if (category === 'matched') {
-      selectedRows = matchedList;
-      totalContext = workingBooks.length;
-      count = matchedList.length;
+      selectedRows = recoData.matched;
+      totalContext = recoData.summary.totalCount;
+      count = recoData.summary.matchedCount;
     } else if (category === 'not-in-book') {
-      selectedRows = notInBookList;
-      totalContext = workingMonth2bRecords.length;
-      count = notInBookList.length;
+      selectedRows = recoData.notInBook;
+      totalContext = recoData.summary.notInBookCount + recoData.summary.matchedCount;
+      count = recoData.summary.notInBookCount;
     } else {
-      selectedRows = notIn2bList;
-      totalContext = workingBooks.length;
-      count = notIn2bList.length;
+      selectedRows = recoData.notIn2b;
+      totalContext = recoData.summary.totalCount;
+      count = recoData.summary.notIn2bCount;
     }
 
     const pct = totalContext > 0 ? ((count / totalContext) * 100).toFixed(1) : '0.0';
@@ -381,7 +150,7 @@ export default function WorkingStepsDetailSheet({
       categoryCount: count,
       matchPercentage: pct
     };
-  }, [booksRecords, gstr2bRecords, workingMonth, category]);
+  }, [recoData, category]);
 
   // Filter by search term
   const filteredRows = useMemo(() => {

@@ -99,6 +99,8 @@ export default function App() {
               toggleStepDone={toggleStepDone}
               setView={setView}
               showToast={showToast}
+              fy={fy}
+              month={month}
             />
           )}
 
