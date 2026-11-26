@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { getQueryParams, updateQueryParams } from '../utils/router';
 import defaultRegisters from '../data/defaultRegisters.json';
-import { loadRegisterRows, REGISTER_TABS } from '../services/registerService';
+import { loadRegisterRows, saveRegisterRow, REGISTER_TABS } from '../services/registerService';
 
 // ==========================================
 // Types & Interfaces
@@ -20,6 +20,30 @@ export interface AuditEntry {
   status: AuditStatus;
   note: string;
   updatedAt: string;
+}
+
+export interface AuditFieldChangeLog {
+  id: string;
+  invNo: string;
+  gstin: string;
+  field: string;
+  oldValue: string;
+  newValue: string;
+  user: string;
+  timestamp: string;
+}
+
+export interface AuditEditState {
+  gstin: string;
+  invNo: string;
+  supplierName: string;
+  date: string;
+  taxable: number;
+  igst: number;
+  cgst: number;
+  sgst: number;
+  note: string;
+  status: AuditStatus;
 }
 
 export interface ReconciledInvoice {
@@ -309,6 +333,36 @@ export const cleanStr = (s?: string): string => (s || '').trim().toUpperCase().r
 
 export const cleanInv = (s?: string): string => (s || '').trim().toUpperCase().replace(/[\s\-_/]/g, '');
 
+export const ALL_FY_MONTHS = [
+  { value: 'Apr-2026', label: 'April-2026', short: 'Apr' },
+  { value: 'May-2026', label: 'May-2026', short: 'May' },
+  { value: 'Jun-2026', label: 'June-2026', short: 'Jun' },
+  { value: 'Jul-2026', label: 'July-2026', short: 'Jul' },
+  { value: 'Aug-2026', label: 'August-2026', short: 'Aug' },
+  { value: 'Sep-2026', label: 'September-2026', short: 'Sep' },
+  { value: 'Oct-2026', label: 'October-2026', short: 'Oct' },
+  { value: 'Nov-2026', label: 'November-2026', short: 'Nov' },
+  { value: 'Dec-2026', label: 'December-2026', short: 'Dec' },
+  { value: 'Jan-2027', label: 'January-2027', short: 'Jan' },
+  { value: 'Feb-2027', label: 'February-2027', short: 'Feb' },
+  { value: 'Mar-2027', label: 'March-2027', short: 'Mar' }
+];
+
+// GSTR-2B Month Search Priority function:
+// 1. Same working month = 0 (Highest)
+// 2. Next/future months = 10 + distance
+// 3. Previous/past months = 100 + distance
+export function getMonthPriority(targetM: string, currentM: string): number {
+  if (targetM === currentM) return 0;
+  const currIdx = ALL_FY_MONTHS.findIndex((m) => m.value === currentM);
+  const targetIdx = ALL_FY_MONTHS.findIndex((m) => m.value === targetM);
+  if (currIdx === -1 || targetIdx === -1) return 999;
+  if (targetIdx > currIdx) {
+    return 10 + (targetIdx - currIdx);
+  }
+  return 100 + (currIdx - targetIdx);
+}
+
 export const parseRecordMonth = (item: any, defaultMonth: string = 'Oct'): string => {
   const mRaw = (item.m || '').trim();
   const dRaw = (item.d || item.date || '').trim();
@@ -321,6 +375,21 @@ export const parseRecordMonth = (item: any, defaultMonth: string = 'Oct'): strin
     const yrMatch = dRaw.match(/\b(20\d\d)\b/);
     if (yrMatch) parsedYear = yrMatch[1];
   }
+
+  if (!parsedMonth && dRaw) {
+    const parts = dRaw.split(/[-/]/);
+    const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        const mNum = parseInt(parts[1], 10);
+        if (mNum >= 1 && mNum <= 12) parsedMonth = MONTH_NAMES[mNum];
+      } else if (parts[2].length === 4) {
+        const mNum = parseInt(parts[1], 10);
+        if (mNum >= 1 && mNum <= 12) parsedMonth = MONTH_NAMES[mNum];
+      }
+    }
+  }
+
   const MONTH_MAP: Record<string, string> = {
     jan: 'Jan', january: 'Jan',
     feb: 'Feb', february: 'Feb',
@@ -449,22 +518,6 @@ export default function ReconciliationView({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Standard FY Months
-  const ALL_FY_MONTHS = useMemo(() => [
-    { value: 'Apr-2026', label: 'April-2026', short: 'Apr' },
-    { value: 'May-2026', label: 'May-2026', short: 'May' },
-    { value: 'Jun-2026', label: 'June-2026', short: 'Jun' },
-    { value: 'Jul-2026', label: 'July-2026', short: 'Jul' },
-    { value: 'Aug-2026', label: 'August-2026', short: 'Aug' },
-    { value: 'Sep-2026', label: 'September-2026', short: 'Sep' },
-    { value: 'Oct-2026', label: 'October-2026', short: 'Oct' },
-    { value: 'Nov-2026', label: 'November-2026', short: 'Nov' },
-    { value: 'Dec-2026', label: 'December-2026', short: 'Dec' },
-    { value: 'Jan-2027', label: 'January-2027', short: 'Jan' },
-    { value: 'Feb-2027', label: 'February-2027', short: 'Feb' },
-    { value: 'Mar-2027', label: 'March-2027', short: 'Mar' }
-  ], []);
-
   // Working Month derived directly from TopBar HeadingTemplate props
   const workingMonth = useMemo(() => {
     let year = '2026';
@@ -528,6 +581,26 @@ export default function ReconciliationView({
   const [auditingRecord, setAuditingRecord] = useState<ReconciledInvoice | null>(null);
   const [auditFormStatus, setAuditFormStatus] = useState<AuditStatus>('Verified');
   const [auditFormNote, setAuditFormNote] = useState<string>('');
+  const [auditEditState, setAuditEditState] = useState<AuditEditState>({
+    gstin: '',
+    invNo: '',
+    supplierName: '',
+    date: '',
+    taxable: 0,
+    igst: 0,
+    cgst: 0,
+    sgst: 0,
+    note: '',
+    status: 'Verified'
+  });
+  const [auditChangeLogs, setAuditChangeLogs] = useState<AuditFieldChangeLog[]>(() => {
+    try {
+      const raw = localStorage.getItem('gst_audit_change_logs_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
     message: string;
@@ -677,21 +750,6 @@ export default function ReconciliationView({
       isMounted = false;
     };
   }, []);
-
-  // GSTR-2B Month Search Priority function:
-  // 1. Same working month = 0 (Highest)
-  // 2. Next/future months = 10 + distance
-  // 3. Previous/past months = 100 + distance
-  function getMonthPriority(targetM: string, currentM: string): number {
-    if (targetM === currentM) return 0;
-    const currIdx = ALL_FY_MONTHS.findIndex((m) => m.value === currentM);
-    const targetIdx = ALL_FY_MONTHS.findIndex((m) => m.value === targetM);
-    if (currIdx === -1 || targetIdx === -1) return 999;
-    if (targetIdx > currIdx) {
-      return 10 + (targetIdx - currIdx);
-    }
-    return 100 + (currIdx - targetIdx);
-  }
 
   // -------------------------------------------------------------
   // Full Reconciliation Engine (Books -> 2B Directional Matching)
@@ -1226,41 +1284,238 @@ export default function ReconciliationView({
   // -------------------------------------------------------------
   const handleOpenAudit = (rec: ReconciledInvoice) => {
     if (isLocked) {
-      showToast('Reconciliation locked hai! Audit note edit nahi ho sakta.');
+      showToast('Reconciliation locked hai! Audit edit nahi ho sakta.');
       return;
     }
     setAuditingRecord(rec);
+    setAuditEditState({
+      gstin: rec.gstin || '',
+      invNo: rec.invNo || '',
+      supplierName: rec.supplierName || '',
+      date: rec.date || '',
+      taxable: rec.bTaxable || 0,
+      igst: rec.bIgst || 0,
+      cgst: rec.bCgst || 0,
+      sgst: rec.bSgst || 0,
+      note: rec.auditNote || '',
+      status: rec.auditStatus || 'Verified'
+    });
     setAuditFormStatus(rec.auditStatus || 'Verified');
     setAuditFormNote(rec.auditNote || '');
   };
 
-  const handleSaveAudit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveAudit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (isLocked) {
       showToast('Reconciliation locked hai! Changes save nahi honge.');
       return;
     }
     if (!auditingRecord) return;
 
-    const key = auditingRecord.id;
+    const curTaxable = Number(auditEditState.taxable) || 0;
+    const curIgst = Number(auditEditState.igst) || 0;
+    const curCgst = Number(auditEditState.cgst) || 0;
+    const curSgst = Number(auditEditState.sgst) || 0;
+    const curTotal = round2(curTaxable + curIgst + curCgst + curSgst);
+
+    // 1. Identify changes for audit change logs
+    const changes: { field: string; oldVal: string; newVal: string }[] = [];
+    if (cleanStr(auditingRecord.gstin) !== cleanStr(auditEditState.gstin)) {
+      changes.push({ field: 'Supplier GSTIN', oldVal: auditingRecord.gstin || '-', newVal: auditEditState.gstin });
+    }
+    if (cleanInv(auditingRecord.invNo) !== cleanInv(auditEditState.invNo)) {
+      changes.push({ field: 'Invoice No.', oldVal: auditingRecord.invNo || '-', newVal: auditEditState.invNo });
+    }
+    if (cleanStr(auditingRecord.supplierName) !== cleanStr(auditEditState.supplierName)) {
+      changes.push({ field: 'Supplier Name', oldVal: auditingRecord.supplierName || '-', newVal: auditEditState.supplierName });
+    }
+    if (auditEditState.date && auditingRecord.date !== auditEditState.date) {
+      changes.push({ field: 'Invoice Date', oldVal: auditingRecord.date || '-', newVal: auditEditState.date });
+    }
+    if (Math.abs(round2(auditingRecord.bTaxable - curTaxable)) > 0.01) {
+      changes.push({ field: 'Taxable Value', oldVal: formatAmount(auditingRecord.bTaxable), newVal: formatAmount(curTaxable) });
+    }
+    if (Math.abs(round2(auditingRecord.bIgst - curIgst)) > 0.01) {
+      changes.push({ field: 'IGST', oldVal: formatAmount(auditingRecord.bIgst), newVal: formatAmount(curIgst) });
+    }
+    if (Math.abs(round2(auditingRecord.bCgst - curCgst)) > 0.01) {
+      changes.push({ field: 'CGST', oldVal: formatAmount(auditingRecord.bCgst), newVal: formatAmount(curCgst) });
+    }
+    if (Math.abs(round2(auditingRecord.bSgst - curSgst)) > 0.01) {
+      changes.push({ field: 'SGST', oldVal: formatAmount(auditingRecord.bSgst), newVal: formatAmount(curSgst) });
+    }
+
+    const nowTime = new Date().toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    if (changes.length > 0) {
+      const newLogs: AuditFieldChangeLog[] = changes.map(c => ({
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        invNo: auditEditState.invNo || auditingRecord.invNo,
+        gstin: auditEditState.gstin || auditingRecord.gstin,
+        field: c.field,
+        oldValue: c.oldVal,
+        newValue: c.newVal,
+        user: 'User',
+        timestamp: nowTime
+      }));
+      const updatedLogs = [...newLogs, ...auditChangeLogs];
+      setAuditChangeLogs(updatedLogs);
+      try {
+        localStorage.setItem('gst_audit_change_logs_v1', JSON.stringify(updatedLogs));
+      } catch {}
+    }
+
+    // 2. Update Books Data in localStorage and database
+    let rawList: any[] = [];
+    try {
+      const saved = localStorage.getItem('itc_register_v1');
+      if (saved) {
+        rawList = JSON.parse(saved);
+      }
+    } catch {}
+    if (!Array.isArray(rawList) || rawList.length === 0) {
+      if (Array.isArray((defaultRegisters as any)?.itc)) {
+        rawList = [...(defaultRegisters as any).itc];
+      }
+    }
+
+    const isPaise = rawList.some(
+      (b) => (b.taxable && Math.abs(b.taxable) >= 100000) || (b.t && Math.abs(b.t) >= 100000)
+    );
+
+    const bGstinClean = cleanStr(auditingRecord.gstin);
+    const bInvClean = cleanInv(auditingRecord.invNo);
+
+    let foundIdx = rawList.findIndex(r => r.id === auditingRecord.id);
+    if (foundIdx === -1) {
+      foundIdx = rawList.findIndex(
+        r => cleanStr(r.g || r.gstin) === bGstinClean && cleanInv(r.n || r.invNo) === bInvClean
+      );
+    }
+
+    const tVal = isPaise ? Math.round(curTaxable * 100) : curTaxable;
+    const iVal = isPaise ? Math.round(curIgst * 100) : curIgst;
+    const cVal = isPaise ? Math.round(curCgst * 100) : curCgst;
+    const sVal = isPaise ? Math.round(curSgst * 100) : curSgst;
+    const totalVal = isPaise ? Math.round(curTotal * 100) : curTotal;
+
+    let targetBookRow: any;
+    if (foundIdx !== -1) {
+      targetBookRow = {
+        ...rawList[foundIdx],
+        g: auditEditState.gstin,
+        gstin: auditEditState.gstin,
+        gstNo: auditEditState.gstin,
+        n: auditEditState.invNo,
+        invNo: auditEditState.invNo,
+        p: auditEditState.supplierName,
+        tradeName: auditEditState.supplierName,
+        party: auditEditState.supplierName,
+        partyName: auditEditState.supplierName,
+        supplierName: auditEditState.supplierName,
+        d: auditEditState.date,
+        t: tVal,
+        taxable: tVal,
+        taxableValue: tVal,
+        amount: tVal,
+        i: iVal,
+        igst: iVal,
+        c: cVal,
+        cgst: cVal,
+        s: sVal,
+        sgst: sVal,
+        invVal: totalVal,
+        totalInvoiceValue: totalVal
+      };
+      rawList[foundIdx] = targetBookRow;
+    } else {
+      targetBookRow = {
+        id: `book-audit-${Date.now()}`,
+        fy: 'FY 2026–27',
+        q: 'Q3 (Oct-Dec)',
+        m: 'Oct',
+        d: auditEditState.date || auditingRecord.gDate || auditingRecord.date || '2026-10-15',
+        p: auditEditState.supplierName,
+        tradeName: auditEditState.supplierName,
+        party: auditEditState.supplierName,
+        partyName: auditEditState.supplierName,
+        supplierName: auditEditState.supplierName,
+        g: auditEditState.gstin,
+        gstin: auditEditState.gstin,
+        gstNo: auditEditState.gstin,
+        n: auditEditState.invNo,
+        invNo: auditEditState.invNo,
+        t: tVal,
+        taxable: tVal,
+        taxableValue: tVal,
+        amount: tVal,
+        i: iVal,
+        igst: iVal,
+        c: cVal,
+        cgst: cVal,
+        s: sVal,
+        sgst: sVal,
+        invVal: totalVal,
+        totalInvoiceValue: totalVal,
+        month: workingMonth
+      };
+      rawList.push(targetBookRow);
+    }
+
+    try {
+      localStorage.setItem('itc_register_v1', JSON.stringify(rawList));
+    } catch {}
+
+    try {
+      await saveRegisterRow(REGISTER_TABS.ITC_PURCHASE, targetBookRow);
+    } catch {}
+
+    // 3. Check if all 6 fields match 2B
+    const diffTaxable = round2(curTaxable - auditingRecord.gTaxable);
+    const diffIgst = round2(curIgst - auditingRecord.gIgst);
+    const diffCgst = round2(curCgst - auditingRecord.gCgst);
+    const diffSgst = round2(curSgst - auditingRecord.gSgst);
+    const liveGstinMatch = cleanStr(auditEditState.gstin) === cleanStr(auditingRecord.gGstin || auditingRecord.gstin);
+    const liveInvMatch = cleanInv(auditEditState.invNo) === cleanInv(auditingRecord.gInvNo || auditingRecord.invNo);
+    const liveTaxMatch = Math.abs(diffTaxable) <= 1.00;
+    const liveIgstMatch = Math.abs(diffIgst) <= 1.00;
+    const liveCgstMatch = Math.abs(diffCgst) <= 1.00;
+    const liveSgstMatch = Math.abs(diffSgst) <= 1.00;
+
+    const liveAllMatch = liveGstinMatch && liveInvMatch && liveTaxMatch && liveIgstMatch && liveCgstMatch && liveSgstMatch;
+
+    const finalStatus: AuditStatus = liveAllMatch ? 'Verified' : auditEditState.status;
+    const auditKey = auditingRecord.id;
     const updatedAudit: AuditEntry = {
-      status: auditFormStatus,
-      note: auditFormNote.trim(),
-      updatedAt: new Date().toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-      })
+      status: finalStatus,
+      note: auditEditState.note.trim() || (changes.length > 0 ? `Audited and updated Books data (${changes.map(c => c.field).join(', ')})` : 'Audited and verified'),
+      updatedAt: nowTime
     };
 
-    const newNotes = { ...auditNotes, [key]: updatedAudit };
+    const newNotes = {
+      ...auditNotes,
+      [auditKey]: updatedAudit,
+      [`${cleanStr(auditEditState.gstin)}_${cleanInv(auditEditState.invNo)}`]: updatedAudit
+    };
     setAuditNotes(newNotes);
     try {
       localStorage.setItem('gst_reco_audit_v1', JSON.stringify(newNotes));
-    } catch { }
+    } catch {}
+
+    // 4. Trigger UI refresh across Reconciliation and ITC Register
+    setRefreshTrigger(prev => prev + 1);
+    window.dispatchEvent(new CustomEvent('register-synced', { detail: { tab: REGISTER_TABS.ITC_PURCHASE } }));
+    window.dispatchEvent(new Event('storage'));
 
     setAuditingRecord(null);
-    showToast(`Audit note saved for ${auditingRecord.invNo}`);
+    showToast(liveAllMatch ? `Audit saved! ${auditEditState.invNo} is now Matched (ITC Verified).` : `Audit changes saved for ${auditEditState.invNo}.`);
   };
 
   // -------------------------------------------------------------
@@ -1970,6 +2225,38 @@ export default function ReconciliationView({
                   )}
                 </div>
               )}
+
+              {/* Audit Change Log in View Modal */}
+              {(() => {
+                const invoiceLogs = auditChangeLogs.filter(
+                  (l) => cleanInv(l.invNo) === cleanInv(viewingRecord.invNo) || cleanStr(l.gstin) === cleanStr(viewingRecord.gstin)
+                );
+                if (invoiceLogs.length === 0) return null;
+                return (
+                  <div style={{ marginTop: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 14px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#350b5e', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                      <span>📋</span>
+                      <span>Audit Change Trail (Audit Log):</span>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>({invoiceLogs.length} changes recorded)</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '130px', overflowY: 'auto' }}>
+                      {invoiceLogs.map((log) => (
+                        <div key={log.id} style={{ fontSize: '12px', background: '#ffffff', border: '1px solid #e2e8f0', padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <strong style={{ color: '#0f172a' }}>{log.field}:</strong>{' '}
+                            <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>{log.oldValue}</span>{' '}
+                            ➔{' '}
+                            <span style={{ color: '#15803d', fontWeight: 700 }}>{log.newValue}</span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                            by <strong>{log.user}</strong> on {log.timestamp}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="reco-modal-footer">
@@ -1986,150 +2273,520 @@ export default function ReconciliationView({
       )}
 
       {/* ======================================================== */}
-      {/* 5. Audit Action Modal                                    */}
+      {/* 5. Audit Action Modal (Edit Mode Comparison Table)       */}
       {/* ======================================================== */}
-      {auditingRecord && (
-        <div className="reco-modal-backdrop" onClick={() => setAuditingRecord(null)}>
-          <div
-            className="reco-modal-card"
-            style={{ maxWidth: '520px', width: '92%' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="reco-modal-header">
-              <h3 style={{ margin: 0 }}>Audit Verification – {auditingRecord.invNo}</h3>
-              <button
-                type="button"
-                className="reco-modal-close"
-                onClick={() => setAuditingRecord(null)}
-              >
-                ✕
-              </button>
-            </div>
+      {auditingRecord && (() => {
+        const curTaxable = Number(auditEditState.taxable) || 0;
+        const curIgst = Number(auditEditState.igst) || 0;
+        const curCgst = Number(auditEditState.cgst) || 0;
+        const curSgst = Number(auditEditState.sgst) || 0;
+        const curTotal = round2(curTaxable + curIgst + curCgst + curSgst);
 
-            <form onSubmit={handleSaveAudit}>
-              <div className="reco-modal-body">
-                <div style={{ fontSize: '12.5px', color: '#475569', marginBottom: '14px' }}>
-                  Invoice from <strong>{auditingRecord.supplierName}</strong> ({auditingRecord.gstin})
-                  <br />
-                  Amount: <strong>{formatCurrency(auditingRecord.bTotal || auditingRecord.gTotal)}</strong>
+        const diffTaxable = round2(curTaxable - auditingRecord.gTaxable);
+        const diffIgst = round2(curIgst - auditingRecord.gIgst);
+        const diffCgst = round2(curCgst - auditingRecord.gCgst);
+        const diffSgst = round2(curSgst - auditingRecord.gSgst);
+        const diffTotal = round2(curTotal - auditingRecord.gTotal);
+
+        const isGstinMatch = cleanStr(auditEditState.gstin) === cleanStr(auditingRecord.gGstin || auditingRecord.gstin);
+        const isInvMatch = cleanInv(auditEditState.invNo) === cleanInv(auditingRecord.gInvNo || auditingRecord.invNo);
+        const isNameMatch = cleanStr(auditEditState.supplierName) === cleanStr(auditingRecord.gTradeName || auditingRecord.supplierName);
+        const isDateMatch = !auditingRecord.gDate || auditEditState.date === auditingRecord.gDate;
+        const isTaxableMatch = Math.abs(diffTaxable) <= 1.00;
+        const isIgstMatch = Math.abs(diffIgst) <= 1.00;
+        const isCgstMatch = Math.abs(diffCgst) <= 1.00;
+        const isSgstMatch = Math.abs(diffSgst) <= 1.00;
+
+        const all6Match = isGstinMatch && isInvMatch && isTaxableMatch && isIgstMatch && isCgstMatch && isSgstMatch;
+
+        // Which fields were mismatched initially (Requirement 3: only mismatched fields are editable)
+        // If invoice is 'Not in Purchase Register', all fields are missing in Books, so all are editable
+        const isNotInBook = auditingRecord.status === 'Not in Purchase Register';
+        const canEditGstin = isNotInBook || !auditingRecord.isGstinMatch;
+        const canEditInv = isNotInBook || !auditingRecord.isInvMatch;
+        const canEditName = isNotInBook || cleanStr(auditingRecord.supplierName) !== cleanStr(auditingRecord.gTradeName || auditingRecord.supplierName);
+        const canEditDate = isNotInBook || (Boolean(auditingRecord.gDate) && auditingRecord.date !== auditingRecord.gDate);
+        const canEditTaxable = isNotInBook || !auditingRecord.isTaxableMatch;
+        const canEditIgst = isNotInBook || !auditingRecord.isIgstMatch;
+        const canEditCgst = isNotInBook || !auditingRecord.isCgstMatch;
+        const canEditSgst = isNotInBook || !auditingRecord.isSgstMatch;
+
+        // Relevant logs for this invoice
+        const invoiceLogs = auditChangeLogs.filter(
+          (l) => cleanInv(l.invNo) === cleanInv(auditingRecord.invNo) || cleanStr(l.gstin) === cleanStr(auditingRecord.gstin)
+        );
+
+        const handleCopyAllFrom2b = () => {
+          setAuditEditState(prev => ({
+            ...prev,
+            gstin: auditingRecord.gGstin || auditingRecord.gstin || prev.gstin,
+            invNo: auditingRecord.gInvNo || auditingRecord.invNo || prev.invNo,
+            supplierName: auditingRecord.gTradeName || auditingRecord.supplierName || prev.supplierName,
+            date: auditingRecord.gDate || auditingRecord.date || prev.date,
+            taxable: auditingRecord.gTaxable,
+            igst: auditingRecord.gIgst,
+            cgst: auditingRecord.gCgst,
+            sgst: auditingRecord.gSgst
+          }));
+          showToast('Copied GSTR-2B values to Books inputs.');
+        };
+
+        return (
+          <div className="reco-modal-backdrop" onClick={() => setAuditingRecord(null)}>
+            <div
+              className="reco-modal-card"
+              style={{ maxWidth: '850px', width: '96%' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="reco-modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <h3 style={{ margin: 0, color: '#350b5e' }}>Invoice Reconciliation Audit – {auditingRecord.invNo}</h3>
+                  <span className={`reco-status-pill ${all6Match ? 'pill-matched' :
+                    auditingRecord.status === 'Matched' ? 'pill-matched' :
+                    auditingRecord.status === 'Not Match' ? 'pill-not-match' :
+                    auditingRecord.status === 'Not in GSTR-2B' ? 'pill-not-in-2b' :
+                    auditingRecord.status === 'Not in Purchase Register' ? 'pill-not-in-book' : 'pill-debit-note'
+                  }`}>
+                    ● {all6Match ? 'Matched (Auto)' : auditingRecord.status}
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  className="reco-modal-close"
+                  onClick={() => setAuditingRecord(null)}
+                >
+                  ✕
+                </button>
+              </div>
 
-                {/* Status Selection Buttons */}
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                    Verification Status:
-                  </label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <label
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        border: auditFormStatus === 'Verified' ? '2px solid #16a34a' : '1px solid #cbd5e1',
-                        background: auditFormStatus === 'Verified' ? '#dcfce7' : '#ffffff',
-                        color: auditFormStatus === 'Verified' ? '#15803d' : '#334155',
-                        fontWeight: 700,
-                        fontSize: '12.5px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="auditStatus"
-                        value="Verified"
-                        checked={auditFormStatus === 'Verified'}
-                        onChange={() => setAuditFormStatus('Verified')}
-                        style={{ display: 'none' }}
-                      />
-                      <span>✓ Verified</span>
-                    </label>
-
-                    <label
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        border: auditFormStatus === 'Query' ? '2px solid #dc2626' : '1px solid #cbd5e1',
-                        background: auditFormStatus === 'Query' ? '#fee2e2' : '#ffffff',
-                        color: auditFormStatus === 'Query' ? '#b91c1c' : '#334155',
-                        fontWeight: 700,
-                        fontSize: '12.5px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="auditStatus"
-                        value="Query"
-                        checked={auditFormStatus === 'Query'}
-                        onChange={() => setAuditFormStatus('Query')}
-                        style={{ display: 'none' }}
-                      />
-                      <span>❓ Query</span>
-                    </label>
-
-                    <label
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        border: auditFormStatus === 'Pending' ? '2px solid #64748b' : '1px solid #cbd5e1',
-                        background: auditFormStatus === 'Pending' ? '#f1f5f9' : '#ffffff',
-                        color: auditFormStatus === 'Pending' ? '#334155' : '#64748b',
-                        fontWeight: 700,
-                        fontSize: '12.5px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="auditStatus"
-                        value="Pending"
-                        checked={auditFormStatus === 'Pending'}
-                        onChange={() => setAuditFormStatus('Pending')}
-                        style={{ display: 'none' }}
-                      />
-                      <span>Pending</span>
-                    </label>
+              <div className="reco-modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+                {/* Match Summary & Sync Bar */}
+                <div
+                  style={{
+                    padding: '12px 16px',
+                    marginBottom: '16px',
+                    border: all6Match ? '1px solid #86efac' : '1px solid #fca5a5',
+                    background: all6Match ? '#f0fdf4' : '#fef2f2',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 700, color: all6Match ? '#15803d' : '#b91c1c' }}>
+                      {all6Match
+                        ? '✓ All 6 Fields Match! On Save, status will automatically become "Matched" (ITC Verified).'
+                        : 'Audit Edit Mode – Only mismatched fields in Books are editable. Govt GSTR-2B is read-only.'}
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
+                      2B Month: <strong>{auditingRecord.month2b}</strong> • Matched fields are locked 🔒.
+                    </div>
                   </div>
+
+                  {!all6Match && (
+                    <button
+                      type="button"
+                      onClick={handleCopyAllFrom2b}
+                      style={{
+                        background: '#350b5e',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '6px 12px',
+                        fontSize: '11.5px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        borderRadius: 0,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                      title="Auto-fill Books fields with Govt GSTR-2B values to match"
+                    >
+                      ⚡ Copy 2B Values to Books
+                    </button>
+                  )}
                 </div>
 
-                {/* Audit Note Textarea */}
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                    Audit Observations & Notes:
+                {/* Side-by-Side Comparison & Edit Table */}
+                <table className="reco-view-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#350b5e', color: '#ffffff' }}>
+                      <th style={{ padding: '9px 12px', textAlign: 'left', width: '22%' }}>FIELD NAME</th>
+                      <th style={{ padding: '9px 12px', textAlign: 'right', width: '30%' }}>BOOKS (EDITABLE)</th>
+                      <th style={{ padding: '9px 12px', textAlign: 'right', width: '28%' }}>GOVT GSTR-2B (READ-ONLY)</th>
+                      <th style={{ padding: '9px 12px', textAlign: 'right', width: '20%' }}>DIFFERENCE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Supplier GSTIN */}
+                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isGstinMatch ? '#fee2e2' : 'transparent' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
+                        Supplier GSTIN
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        {canEditGstin ? (
+                          <input
+                            type="text"
+                            value={auditEditState.gstin}
+                            onChange={(e) => setAuditEditState(prev => ({ ...prev, gstin: e.target.value.toUpperCase() }))}
+                            maxLength={15}
+                            style={{
+                              width: '100%',
+                              padding: '5px 8px',
+                              border: '1.5px solid #7c3aed',
+                              borderRadius: 0,
+                              fontFamily: 'monospace',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              outline: 'none',
+                              textAlign: 'right'
+                            }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: 600 }}>
+                            {auditEditState.gstin || '-'} <span title="Locked: Field Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
+                        {auditingRecord.gGstin || auditingRecord.gstin || '-'}
+                      </td>
+                      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+                        <span className={`mini-match-pill ${isGstinMatch ? 'match' : 'mismatch'}`}>
+                          {isGstinMatch ? 'Match' : 'Not Match'}
+                        </span>
+                      </td>
+                    </tr>
+
+                    {/* Invoice No. */}
+                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isInvMatch ? '#fee2e2' : 'transparent' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
+                        Invoice No.
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        {canEditInv ? (
+                          <input
+                            type="text"
+                            value={auditEditState.invNo}
+                            onChange={(e) => setAuditEditState(prev => ({ ...prev, invNo: e.target.value }))}
+                            style={{
+                              width: '100%',
+                              padding: '5px 8px',
+                              border: '1.5px solid #7c3aed',
+                              borderRadius: 0,
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              outline: 'none',
+                              textAlign: 'right'
+                            }}
+                          />
+                        ) : (
+                          <span style={{ fontWeight: 600 }}>
+                            {auditEditState.invNo || '-'} <span title="Locked: Field Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 600, color: '#1e293b' }}>
+                        {auditingRecord.gInvNo || auditingRecord.invNo || '-'}
+                      </td>
+                      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+                        <span className={`mini-match-pill ${isInvMatch ? 'match' : 'mismatch'}`}>
+                          {isInvMatch ? 'Match' : 'Not Match'}
+                        </span>
+                      </td>
+                    </tr>
+
+                    {/* Supplier Name */}
+                    <tr style={{ borderBottom: '1px solid #edf2f7' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
+                        Supplier Name
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        {canEditName ? (
+                          <input
+                            type="text"
+                            value={auditEditState.supplierName}
+                            onChange={(e) => setAuditEditState(prev => ({ ...prev, supplierName: e.target.value }))}
+                            style={{
+                              width: '100%',
+                              padding: '5px 8px',
+                              border: '1.5px solid #7c3aed',
+                              borderRadius: 0,
+                              fontSize: '12px',
+                              outline: 'none',
+                              textAlign: 'right'
+                            }}
+                          />
+                        ) : (
+                          <span>
+                            {auditEditState.supplierName || '-'} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '9px 12px', textAlign: 'right', color: '#1e293b' }}>
+                        {auditingRecord.gTradeName || auditingRecord.supplierName || '-'}
+                      </td>
+                      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+                        <span className={`mini-match-pill ${isNameMatch ? 'match' : 'mismatch'}`}>
+                          {isNameMatch ? 'Match' : 'Not Match'}
+                        </span>
+                      </td>
+                    </tr>
+
+                    {/* Invoice Date */}
+                    <tr style={{ borderBottom: '1px solid #edf2f7' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
+                        Invoice Date
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        {canEditDate ? (
+                          <input
+                            type="text"
+                            value={auditEditState.date}
+                            onChange={(e) => setAuditEditState(prev => ({ ...prev, date: e.target.value }))}
+                            placeholder="YYYY-MM-DD"
+                            style={{
+                              width: '100%',
+                              padding: '5px 8px',
+                              border: '1.5px solid #7c3aed',
+                              borderRadius: 0,
+                              fontSize: '12px',
+                              outline: 'none',
+                              textAlign: 'right'
+                            }}
+                          />
+                        ) : (
+                          <span>
+                            {auditEditState.date || '-'} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '9px 12px', textAlign: 'right', color: '#1e293b' }}>
+                        {auditingRecord.gDate || auditingRecord.date || '-'}
+                      </td>
+                      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+                        <span className={`mini-match-pill ${isDateMatch ? 'match' : 'mismatch'}`}>
+                          {isDateMatch ? 'Match' : 'Not Match'}
+                        </span>
+                      </td>
+                    </tr>
+
+                    {/* Taxable Value */}
+                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isTaxableMatch ? '#fee2e2' : 'transparent' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
+                        Taxable Value
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        {canEditTaxable ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={auditEditState.taxable}
+                            onChange={(e) => setAuditEditState(prev => ({ ...prev, taxable: parseFloat(e.target.value) || 0 }))}
+                            style={{
+                              width: '100%',
+                              padding: '5px 8px',
+                              border: '1.5px solid #7c3aed',
+                              borderRadius: 0,
+                              fontWeight: 700,
+                              fontSize: '12.5px',
+                              textAlign: 'right',
+                              outline: 'none'
+                            }}
+                          />
+                        ) : (
+                          <span className="num-val" style={{ fontWeight: 700 }}>
+                            {formatAmount(curTaxable)} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
+                        {formatAmount(auditingRecord.gTaxable)}
+                      </td>
+                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: isTaxableMatch ? '#15803d' : '#dc2626' }}>
+                        {formatAmount(diffTaxable)}
+                      </td>
+                    </tr>
+
+                    {/* IGST */}
+                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isIgstMatch ? '#fee2e2' : 'transparent' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
+                        IGST
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        {canEditIgst ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={auditEditState.igst}
+                            onChange={(e) => setAuditEditState(prev => ({ ...prev, igst: parseFloat(e.target.value) || 0 }))}
+                            style={{
+                              width: '100%',
+                              padding: '5px 8px',
+                              border: '1.5px solid #7c3aed',
+                              borderRadius: 0,
+                              fontWeight: 700,
+                              fontSize: '12.5px',
+                              textAlign: 'right',
+                              outline: 'none'
+                            }}
+                          />
+                        ) : (
+                          <span className="num-val" style={{ fontWeight: 700 }}>
+                            {formatAmount(curIgst)} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
+                        {formatAmount(auditingRecord.gIgst)}
+                      </td>
+                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: isIgstMatch ? '#15803d' : '#dc2626' }}>
+                        {formatAmount(diffIgst)}
+                      </td>
+                    </tr>
+
+                    {/* CGST */}
+                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isCgstMatch ? '#fee2e2' : 'transparent' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
+                        CGST
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        {canEditCgst ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={auditEditState.cgst}
+                            onChange={(e) => setAuditEditState(prev => ({ ...prev, cgst: parseFloat(e.target.value) || 0 }))}
+                            style={{
+                              width: '100%',
+                              padding: '5px 8px',
+                              border: '1.5px solid #7c3aed',
+                              borderRadius: 0,
+                              fontWeight: 700,
+                              fontSize: '12.5px',
+                              textAlign: 'right',
+                              outline: 'none'
+                            }}
+                          />
+                        ) : (
+                          <span className="num-val" style={{ fontWeight: 700 }}>
+                            {formatAmount(curCgst)} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
+                        {formatAmount(auditingRecord.gCgst)}
+                      </td>
+                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: isCgstMatch ? '#15803d' : '#dc2626' }}>
+                        {formatAmount(diffCgst)}
+                      </td>
+                    </tr>
+
+                    {/* SGST */}
+                    <tr style={{ borderBottom: '1px solid #edf2f7', background: !isSgstMatch ? '#fee2e2' : 'transparent' }}>
+                      <td style={{ padding: '9px 12px', fontWeight: 600, color: '#475569' }}>
+                        SGST
+                      </td>
+                      <td style={{ padding: '6px 10px', textAlign: 'right' }}>
+                        {canEditSgst ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={auditEditState.sgst}
+                            onChange={(e) => setAuditEditState(prev => ({ ...prev, sgst: parseFloat(e.target.value) || 0 }))}
+                            style={{
+                              width: '100%',
+                              padding: '5px 8px',
+                              border: '1.5px solid #7c3aed',
+                              borderRadius: 0,
+                              fontWeight: 700,
+                              fontSize: '12.5px',
+                              textAlign: 'right',
+                              outline: 'none'
+                            }}
+                          />
+                        ) : (
+                          <span className="num-val" style={{ fontWeight: 700 }}>
+                            {formatAmount(curSgst)} <span title="Locked: Matches 2B" style={{ color: '#15803d', fontSize: '11px', marginLeft: '3px' }}>🔒</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: '#1e293b' }}>
+                        {formatAmount(auditingRecord.gSgst)}
+                      </td>
+                      <td className="num-val" style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, color: isSgstMatch ? '#15803d' : '#dc2626' }}>
+                        {formatAmount(diffSgst)}
+                      </td>
+                    </tr>
+
+                    {/* Total Amount Row */}
+                    <tr style={{ background: '#f8fafc', fontWeight: 800 }}>
+                      <td style={{ padding: '11px 12px', color: '#1e293b' }}>TOTAL AMOUNT</td>
+                      <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: '#350b5e', fontSize: '14px' }}>
+                        {formatAmount(curTotal)}
+                      </td>
+                      <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: '#1e1b4b', fontSize: '14px' }}>
+                        {formatAmount(auditingRecord.gTotal)}
+                      </td>
+                      <td className="num-val" style={{ padding: '11px 12px', textAlign: 'right', color: Math.abs(diffTotal) <= 1 ? '#15803d' : '#dc2626', fontSize: '14px' }}>
+                        {formatAmount(diffTotal)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Audit Observation Remarks */}
+                <div style={{ marginTop: '16px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                    Audit Observation / Remark (Optional):
                   </label>
-                  <textarea
-                    rows={4}
-                    value={auditFormNote}
-                    onChange={(e) => setAuditFormNote(e.target.value)}
-                    placeholder="Enter audit remarks, vendor follow-up notes, reconciliation explanation..."
+                  <input
+                    type="text"
+                    value={auditEditState.note}
+                    onChange={(e) => setAuditEditState(prev => ({ ...prev, note: e.target.value }))}
+                    placeholder="Enter audit explanation or reference..."
                     style={{
                       width: '100%',
-                      padding: '10px 12px',
+                      padding: '8px 12px',
                       border: '1.5px solid #cbd5e1',
                       borderRadius: 0,
                       fontSize: '12.5px',
-                      fontFamily: 'inherit',
-                      outline: 'none',
-                      boxSizing: 'border-box'
+                      outline: 'none'
                     }}
                   />
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                    Note will be saved permanently to your audit log for this invoice.
-                  </div>
                 </div>
+
+                {/* Audit Log Trail (Requirement 7) */}
+                {invoiceLogs.length > 0 && (
+                  <div style={{ marginTop: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px 14px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#350b5e', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                      <span>📋</span>
+                      <span>Audit Change Trail (Audit Log History):</span>
+                      <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 500 }}>({invoiceLogs.length} changes recorded)</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '130px', overflowY: 'auto' }}>
+                      {invoiceLogs.map(log => (
+                        <div key={log.id} style={{ fontSize: '12px', background: '#ffffff', border: '1px solid #e2e8f0', padding: '6px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <strong style={{ color: '#0f172a' }}>{log.field}:</strong>{' '}
+                            <span style={{ color: '#dc2626', textDecoration: 'line-through' }}>{log.oldValue}</span>{' '}
+                            ➔{' '}
+                            <span style={{ color: '#15803d', fontWeight: 700 }}>{log.newValue}</span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap', marginLeft: '12px' }}>
+                            by <strong>{log.user}</strong> on {log.timestamp}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
+              {/* Footer */}
               <div className="reco-modal-footer">
                 <button
                   type="button"
@@ -2139,17 +2796,18 @@ export default function ReconciliationView({
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  type="button"
                   className="btn-reco-action"
                   style={{ background: '#16a34a' }}
+                  onClick={() => handleSaveAudit()}
                 >
-                  Save Audit Note
+                  Save Audit
                 </button>
               </div>
-            </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Confirmation Dialog (matching ITC & GSTR-2B Sheet Modal) */}
       {confirmDialog && (
