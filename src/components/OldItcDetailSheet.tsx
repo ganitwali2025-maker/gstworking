@@ -6,6 +6,7 @@ import {
   updateOldItcAudit,
   OldItcItem
 } from '../services/oldItcService';
+import { cleanInv } from '../services/recoSyncService';
 
 interface OldItcDetailSheetProps {
   onBack: () => void;
@@ -327,125 +328,123 @@ export default function OldItcDetailSheet({
         </div>
       </div>
 
-      {/* 4. Controls: Search, Filters & Excel Export */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px',
-          background: '#ffffff',
-          border: '1.5px solid #e2e8f0',
-          padding: '10px 16px',
-          marginBottom: '12px',
-          borderRadius: 0,
-          flexWrap: 'wrap'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px', flexWrap: 'wrap' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search Supplier Name, GSTIN, Invoice No..."
-            style={{
-              width: '100%',
-              maxWidth: '300px',
-              border: '1px solid #cbd5e1',
-              padding: '6px 12px',
-              fontSize: '12.5px',
-              outline: 'none',
-              borderRadius: 0
-            }}
-          />
-          {searchTerm && (
+      {/* 4. Main Old ITC Table Card Container with Controls & Table */}
+      <div className="card gstr1-card" style={{ width: '100%', background: '#ffffff', border: '1px solid var(--line)', padding: '20px', borderRadius: 0, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)', boxSizing: 'border-box' }}>
+        {/* Controls: Search, Filters & Excel Export */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '16px',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px', flexWrap: 'wrap' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search Supplier Name, GSTIN, Invoice No..."
+              style={{
+                width: '100%',
+                maxWidth: '300px',
+                border: '1px solid #cbd5e1',
+                padding: '6px 12px',
+                fontSize: '12.5px',
+                outline: 'none',
+                borderRadius: 0
+              }}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', fontSize: '13px' }}
+              >
+                ✕ Clear
+              </button>
+            )}
+
+            {/* Month Filter */}
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={{
+                border: '1px solid #cbd5e1',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#334155',
+                borderRadius: 0,
+                background: '#f8fafc'
+              }}
+            >
+              <option value="ALL">All Months</option>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              style={{
+                border: '1px solid #cbd5e1',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#334155',
+                borderRadius: 0,
+                background: '#f8fafc'
+              }}
+            >
+              <option value="ALL">All Status</option>
+              <option value="Pending">Pending</option>
+              <option value="Matched - Claim">Matched - Claim</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+              Showing {filteredItems.length} of {syncResult.oldItcItems.length} records
+            </span>
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', fontSize: '13px' }}
+              onClick={handleExportExcel}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#15803d',
+                color: '#ffffff',
+                border: 'none',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                borderRadius: 0
+              }}
             >
-              ✕ Clear
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Export Excel
             </button>
-          )}
-
-          {/* Month Filter */}
-          <select
-            value={monthFilter}
-            onChange={(e) => setMonthFilter(e.target.value)}
-            style={{
-              border: '1px solid #cbd5e1',
-              padding: '6px 10px',
-              fontSize: '12px',
-              fontWeight: 600,
-              color: '#334155',
-              borderRadius: 0,
-              background: '#f8fafc'
-            }}
-          >
-            <option value="ALL">All Months</option>
-            {availableMonths.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-
-          {/* Status Filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            style={{
-              border: '1px solid #cbd5e1',
-              padding: '6px 10px',
-              fontSize: '12px',
-              fontWeight: 600,
-              color: '#334155',
-              borderRadius: 0,
-              background: '#f8fafc'
-            }}
-          >
-            <option value="ALL">All Status</option>
-            <option value="Pending">Pending</option>
-            <option value="Matched - Claim">Matched - Claim</option>
-          </select>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-            Showing {filteredItems.length} of {syncResult.oldItcItems.length} records
-          </span>
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: '#15803d',
-              color: '#ffffff',
-              border: 'none',
-              padding: '6px 14px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              borderRadius: 0
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Export Excel
-          </button>
-        </div>
-      </div>
-
-      {/* 5. Main Old ITC Table */}
-      <div className="detail-sheet-table-wrapper" style={{ overflowX: 'auto', border: '1.5px solid #e2e8f0', background: '#ffffff' }}>
-        <table className="detail-sheet-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', color: '#1E1747' }}>
+        {/* 5. Main Old ITC Table */}
+        <div className="detail-sheet-table-wrapper" style={{ overflowX: 'auto', border: '1px solid #e2e8f0', background: '#ffffff', width: '100%' }}>
+          <table className="detail-sheet-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', color: '#1E1747' }}>
           <thead>
             {/* Top Multi-Header Row */}
             <tr style={{ background: '#2B0A4F', color: '#ffffff', textAlign: 'center' }}>
@@ -467,7 +466,7 @@ export default function OldItcDetailSheet({
                 Invoice &amp; Status Details
               </th>
               <th
-                colSpan={5}
+                colSpan={4}
                 style={{
                   padding: '7px 10px',
                   fontSize: '13px',
@@ -484,7 +483,7 @@ export default function OldItcDetailSheet({
                 Books (Purchase Register)
               </th>
               <th
-                colSpan={5}
+                colSpan={4}
                 style={{
                   padding: '7px 10px',
                   fontSize: '13px',
@@ -543,7 +542,6 @@ export default function OldItcDetailSheet({
                   padding: '6px 8px',
                   textAlign: 'center',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -558,7 +556,6 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -572,7 +569,6 @@ export default function OldItcDetailSheet({
                   minWidth: '100px',
                   padding: '6px 10px',
                   textAlign: 'center',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -586,7 +582,6 @@ export default function OldItcDetailSheet({
                   minWidth: '105px',
                   padding: '6px 10px',
                   textAlign: 'center',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -600,7 +595,6 @@ export default function OldItcDetailSheet({
                   minWidth: '140px',
                   padding: '6px 12px',
                   textAlign: 'center',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -614,7 +608,6 @@ export default function OldItcDetailSheet({
                   minWidth: '155px',
                   padding: '6px 12px',
                   textAlign: 'center',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -628,7 +621,6 @@ export default function OldItcDetailSheet({
                   minWidth: '220px',
                   padding: '6px 14px',
                   textAlign: 'center',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -642,7 +634,6 @@ export default function OldItcDetailSheet({
                   minWidth: '200px',
                   padding: '6px 12px',
                   textAlign: 'center',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -656,7 +647,6 @@ export default function OldItcDetailSheet({
                   minWidth: '130px',
                   padding: '6px 10px',
                   textAlign: 'center',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -671,7 +661,6 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -684,7 +673,6 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -697,7 +685,6 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -710,27 +697,13 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
                 SGST
-              </th>
-              <th
-                style={{
-                  width: '115px',
-                  minWidth: '115px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.25)',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Total
               </th>
 
-              {/* GOVT GSTR-2B 5 Columns */}
+              {/* GOVT GSTR-2B 4 Columns */}
               <th
                 style={{
                   width: '115px',
@@ -738,7 +711,6 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#2c0d4a',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -751,7 +723,6 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#2c0d4a',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -764,7 +735,6 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#2c0d4a',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -777,31 +747,17 @@ export default function OldItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#2c0d4a',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
                 SGST
-              </th>
-              <th
-                style={{
-                  width: '115px',
-                  minWidth: '115px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#2c0d4a',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Total
               </th>
             </tr>
           </thead>
           <tbody>
             {filteredItems.length === 0 ? (
               <tr>
-                <td colSpan={20} style={{ textAlign: 'center', padding: '36px', color: '#64748b', fontSize: '14px' }}>
+                <td colSpan={18} style={{ textAlign: 'center', padding: '36px', color: '#64748b', fontSize: '14px' }}>
                   No Old ITC invoices match the search or filter criteria.
                 </td>
               </tr>
@@ -848,8 +804,7 @@ export default function OldItcDetailSheet({
                         padding: '8px 8px',
                         textAlign: 'center',
                         color: '#64748b',
-                        fontWeight: 600,
-                        borderRight: '1px solid #e2e8f0'
+                        fontWeight: 600
                       }}
                     >
                       {idx + 1}
@@ -863,8 +818,7 @@ export default function OldItcDetailSheet({
                         padding: '8px 10px',
                         textAlign: 'center',
                         fontWeight: 700,
-                        color: '#334155',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#334155'
                       }}
                     >
                       {item.originalMonth}
@@ -878,8 +832,7 @@ export default function OldItcDetailSheet({
                         padding: '8px 10px',
                         textAlign: 'center',
                         fontWeight: 600,
-                        color: item.month2b ? '#334155' : '#94a3b8',
-                        borderRight: '1px solid #e2e8f0'
+                        color: item.month2b ? '#334155' : '#94a3b8'
                       }}
                     >
                       {item.month2b || '-'}
@@ -893,8 +846,7 @@ export default function OldItcDetailSheet({
                         padding: '8px 10px',
                         textAlign: 'center',
                         fontWeight: 700,
-                        color: isClaimed ? '#15803d' : '#94a3b8',
-                        borderRight: '1px solid #e2e8f0'
+                        color: isClaimed ? '#15803d' : '#94a3b8'
                       }}
                     >
                       {isClaimed ? (item.claimMonth || '-') : '-'}
@@ -909,8 +861,7 @@ export default function OldItcDetailSheet({
                         textAlign: 'left',
                         fontWeight: 700,
                         color: '#1E1747',
-                        fontSize: '13px',
-                        borderRight: '1px solid #e2e8f0'
+                        fontSize: '13px'
                       }}
                     >
                       {item.invNo}
@@ -924,8 +875,7 @@ export default function OldItcDetailSheet({
                         padding: '8px 12px',
                         textAlign: 'left',
                         fontFamily: 'monospace',
-                        fontSize: '12px',
-                        borderRight: '1px solid #e2e8f0'
+                        fontSize: '12px'
                       }}
                     >
                       {item.gstin}
@@ -939,8 +889,7 @@ export default function OldItcDetailSheet({
                         padding: '8px 14px',
                         textAlign: 'left',
                         fontWeight: 600,
-                        color: '#1E1747',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#1E1747'
                       }}
                     >
                       {item.supplierName}
@@ -954,8 +903,7 @@ export default function OldItcDetailSheet({
                         padding: '8px 12px',
                         textAlign: 'left',
                         fontSize: '12px',
-                        color: '#475569',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#475569'
                       }}
                       title={item.reason}
                     >
@@ -968,8 +916,7 @@ export default function OldItcDetailSheet({
                         width: '130px',
                         minWidth: '130px',
                         padding: '8px 10px',
-                        textAlign: 'center',
-                        borderRight: '1px solid #e2e8f0'
+                        textAlign: 'center'
                       }}
                     >
                       <span
@@ -988,38 +935,32 @@ export default function OldItcDetailSheet({
                       </span>
                     </td>
 
-                    {/* BOOKS 5 Columns (Sky Blue tint #F0F7FF) */}
-                    <td style={{ width: '115px', minWidth: '115px', padding: '8px 10px', textAlign: 'right', background: '#F0F7FF', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    {/* BOOKS 4 Columns (Same Purple tint #F6F2FC) */}
+                    <td style={{ width: '115px', minWidth: '115px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
                       {renderAmt(item.bTaxable, item.gTaxable, true)}
                     </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F0F7FF', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
                       {renderAmt(item.bIgst, item.gIgst, true)}
                     </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F0F7FF', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
                       {renderAmt(item.bCgst, item.gCgst, true)}
                     </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F0F7FF', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
                       {renderAmt(item.bSgst, item.gSgst, true)}
                     </td>
-                    <td style={{ width: '115px', minWidth: '115px', padding: '8px 10px', textAlign: 'right', background: '#F0F7FF', fontWeight: 700, color: '#1E1747', borderRight: '1.5px solid #cbd5e1' }}>
-                      {renderAmt(item.bTotal, item.gTotal, true)}
-                    </td>
 
-                    {/* GOVT 2B 5 Columns (Lavender tint #F6F2FC) */}
-                    <td style={{ width: '115px', minWidth: '115px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    {/* GOVT 2B 4 Columns (Lavender tint #F6F2FC) */}
+                    <td style={{ width: '115px', minWidth: '115px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
                       {renderAmt(item.bTaxable, item.gTaxable, false)}
                     </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
                       {renderAmt(item.bIgst, item.gIgst, false)}
                     </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
                       {renderAmt(item.bCgst, item.gCgst, false)}
                     </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600, borderRight: '1px solid #e2e8f0' }}>
+                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
                       {renderAmt(item.bSgst, item.gSgst, false)}
-                    </td>
-                    <td style={{ width: '115px', minWidth: '115px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 700, color: '#350b5e', borderRight: '1px solid #e2e8f0' }}>
-                      {renderAmt(item.bTotal, item.gTotal, false)}
                     </td>
 
                     {/* Action Column: View, Audit, Move to Not Claim */}
@@ -1029,45 +970,59 @@ export default function OldItcDetailSheet({
                         minWidth: '180px',
                         padding: '8px 12px',
                         textAlign: 'center',
-                        whiteSpace: 'nowrap',
-                        borderLeft: '1px solid #e2e8f0',
-                        borderRight: '1px solid #e2e8f0'
+                        whiteSpace: 'nowrap'
                       }}
                     >
                       <div style={{ display: 'inline-flex', gap: '4px' }}>
                         <button
                           type="button"
+                          className="btn-action-view"
                           onClick={() => setViewItem(item)}
+                          title="View Side-by-Side Comparison"
                           style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
                             background: '#f1f5f9',
                             color: '#334155',
                             border: '1px solid #cbd5e1',
-                            padding: '3px 7px',
+                            padding: '3px 8px',
                             fontSize: '11px',
                             fontWeight: 700,
                             cursor: 'pointer',
                             borderRadius: 0
                           }}
-                          title="View Invoice Details"
                         >
-                          View
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                          </svg>
+                          <span>View</span>
                         </button>
                         <button
                           type="button"
+                          className="btn-action-audit"
                           onClick={() => handleOpenAudit(item)}
+                          title="Add Audit Note & Mark Verified/Query"
                           style={{
-                            background: item.auditStatus === 'Verified' ? '#dcfce7' : '#f1f5f9',
-                            color: item.auditStatus === 'Verified' ? '#15803d' : '#334155',
-                            border: '1px solid #cbd5e1',
-                            padding: '3px 7px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            background: item.auditStatus === 'Verified' ? '#dcfce7' : '#FAF5FF',
+                            color: item.auditStatus === 'Verified' ? '#15803d' : '#6B21A8',
+                            border: item.auditStatus === 'Verified' ? '1px solid #86efac' : '1px solid #D8B4FE',
+                            padding: '3px 8px',
                             fontSize: '11px',
                             fontWeight: 700,
                             cursor: 'pointer',
                             borderRadius: 0
                           }}
-                          title="Add / View Audit Note"
                         >
-                          Audit
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                          </svg>
+                          <span>Audit</span>
                         </button>
                         {!isClaimed && (
                           <button
@@ -1097,229 +1052,791 @@ export default function OldItcDetailSheet({
           </tbody>
         </table>
       </div>
+    </div>
 
-      {/* VIEW MODAL */}
-      {viewItem && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-          onClick={() => setViewItem(null)}
-        >
+      {/* ======================================================== */}
+      {/* 4. Side-by-Side View Modal (GST RecoManager Style)        */}
+      {/* ======================================================== */}
+      {viewItem && (() => {
+        const isMatched = viewItem.status === 'Matched - Claim';
+        const bTotalGst = viewItem.bIgst + viewItem.bCgst + viewItem.bSgst;
+        const gTotalGst = viewItem.gIgst + viewItem.gCgst + viewItem.gSgst;
+        const dTotalGst = bTotalGst - gTotalGst;
+
+        const has2b = Boolean(viewItem.month2b || viewItem.gTaxable || viewItem.gIgst || viewItem.gCgst || viewItem.gSgst || viewItem.gInvNo);
+        const isTaxableMatch = has2b && Math.abs(viewItem.bTaxable - viewItem.gTaxable) <= 1;
+        const isIgstMatch = has2b && Math.abs(viewItem.bIgst - viewItem.gIgst) <= 1;
+        const isCgstMatch = has2b && Math.abs(viewItem.bCgst - viewItem.gCgst) <= 1;
+        const isSgstMatch = has2b && Math.abs(viewItem.bSgst - viewItem.gSgst) <= 1;
+        const isInvMatch = has2b ? (viewItem.gInvNo ? cleanInv(viewItem.invNo) === cleanInv(viewItem.gInvNo) : true) : false;
+        const isGstinMatch = true;
+        const isAllFieldsMatch = isGstinMatch && isInvMatch && isTaxableMatch && isIgstMatch && isCgstMatch && isSgstMatch;
+
+        return (
           <div
+            className="reco-modal-backdrop"
             style={{
-              background: '#ffffff',
-              width: '90%',
-              maxWidth: '650px',
-              padding: '24px',
-              borderRadius: 0,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.55)',
+              backdropFilter: 'blur(3px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1050,
+              padding: '16px'
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setViewItem(null)}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #e2e8f0', paddingBottom: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: '#241a3d', fontWeight: 800 }}>
-                Invoice Detail: {viewItem.invNo}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setViewItem(null)}
-                style={{ background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}
+            <div
+              className="reco-modal-card"
+              style={{
+                maxWidth: '920px',
+                width: '96%',
+                background: '#ffffff',
+                borderRadius: '16px',
+                boxShadow: '0 25px 50px -12px rgba(42, 18, 80, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+                fontFamily: "'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif",
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Top Title Header */}
+              <div
+                style={{
+                  padding: '20px 24px 16px 24px',
+                  background: '#ffffff',
+                  borderBottom: '1px solid #F0ECF8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px'
+                }}
               >
-                ✕
-              </button>
-            </div>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '21px', fontWeight: 700, color: '#350B5E', letterSpacing: '-0.01em' }}>
+                    GST RecoManager
+                  </h2>
+                  <div style={{ margin: '6px 0 0 0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px 12px' }}>
+                    <div style={{ fontSize: '13px', color: (isMatched || isAllFieldsMatch) ? '#15803D' : '#DC2626', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '14px' }}>{(isMatched || isAllFieldsMatch) ? '✓' : '⚠'}</span>
+                      <span>
+                        {(isMatched || isAllFieldsMatch)
+                          ? `6/6 Fields Match – Verified & Eligible for ITC Claim (${viewItem.claimMonth || viewItem.month2b || workingMonth})`
+                          : `Pending Old ITC (${viewItem.originalMonth}) – ${viewItem.reason || 'ITC Verification Required'}`}
+                      </span>
+                    </div>
 
-            <div style={{ marginTop: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
-              <div><strong>Supplier Name:</strong> {viewItem.supplierName}</div>
-              <div><strong>Supplier GSTIN:</strong> <code style={{ color: '#4c1d95' }}>{viewItem.gstin}</code></div>
-              <div><strong>Invoice Date:</strong> {viewItem.date}</div>
-              <div><strong>Original Month:</strong> {viewItem.originalMonth}</div>
-              <div><strong>Current Status:</strong> <span style={{ fontWeight: 700, color: viewItem.status === 'Matched - Claim' ? '#15803d' : '#b45309' }}>{viewItem.status}</span></div>
-              <div><strong>Claim Month:</strong> {viewItem.claimMonth || '-'}</div>
-              <div><strong>ITC Match Score:</strong> {viewItem.itcMatchRatio}</div>
-              <div><strong>Pending Months:</strong> {viewItem.pendingMonthsCount} month(s)</div>
-            </div>
-
-            <div style={{ marginTop: '14px', background: '#f8fafc', padding: '10px 12px', border: '1px solid #e2e8f0', fontSize: '12.5px' }}>
-              <strong>Mismatch / Reason:</strong>
-              <div style={{ color: '#b91c1c', marginTop: '4px', fontWeight: 600 }}>{viewItem.reason}</div>
-            </div>
-
-            {/* Side by side Books vs 2B */}
-            <div style={{ marginTop: '16px', border: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', background: '#4A1A7A', color: '#ffffff', padding: '8px 12px', fontWeight: 700, fontSize: '12px' }}>
-                <div>BOOKS (PURCHASE REGISTER)</div>
-                <div>GOVT GSTR-2B</div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', padding: '12px', gap: '16px', fontSize: '13px' }}>
-                <div style={{ background: '#F0F7FF', padding: '10px' }}>
-                  <div>Taxable: <strong>₹{formatInr(viewItem.bTaxable)}</strong></div>
-                  <div>IGST: <strong>₹{formatInr(viewItem.bIgst)}</strong></div>
-                  <div>CGST: <strong>₹{formatInr(viewItem.bCgst)}</strong></div>
-                  <div>SGST: <strong>₹{formatInr(viewItem.bSgst)}</strong></div>
-                  <div style={{ marginTop: '6px', borderTop: '1px solid #cbd5e1', paddingTop: '4px', color: '#1E1747', fontWeight: 800 }}>
-                    Total: ₹{formatInr(viewItem.bTotal)}
+                    {/* Field Match / Mismatch Tags */}
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                      {[
+                        { label: 'GST No', match: isGstinMatch },
+                        { label: 'Invoice', match: isInvMatch },
+                        { label: 'Taxable', match: isTaxableMatch },
+                        { label: 'IGST', match: isIgstMatch },
+                        { label: 'CGST', match: isCgstMatch },
+                        { label: 'SGST', match: isSgstMatch }
+                      ].map((f) => (
+                        <span
+                          key={f.label}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            background: f.match ? '#DCFCE7' : '#FEE2E2',
+                            color: f.match ? '#15803D' : '#B42318',
+                            border: f.match ? '1px solid #86EFAC' : '1px solid #FCA5A5'
+                          }}
+                        >
+                          <span>{f.label}</span>
+                          <strong style={{ fontWeight: 800 }}>{f.match ? '✓' : '✕'}</strong>
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div style={{ background: '#F6F2FC', padding: '10px' }}>
-                  <div>Taxable: <strong>₹{formatInr(viewItem.gTaxable)}</strong></div>
-                  <div>IGST: <strong>₹{formatInr(viewItem.gIgst)}</strong></div>
-                  <div>CGST: <strong>₹{formatInr(viewItem.gCgst)}</strong></div>
-                  <div>SGST: <strong>₹{formatInr(viewItem.gSgst)}</strong></div>
-                  <div style={{ marginTop: '6px', borderTop: '1px solid #cbd5e1', paddingTop: '4px', color: '#350b5e', fontWeight: 800 }}>
-                    Total: ₹{formatInr(viewItem.gTotal)}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      background: isMatched ? '#DCFCE7' : '#FEF3C7',
+                      color: isMatched ? '#14532D' : '#B45309',
+                      border: isMatched ? '1px solid #86EFAC' : '1px solid #FDE68A'
+                    }}
+                  >
+                    <span>●</span>
+                    <span>{viewItem.status}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setViewItem(null)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      minWidth: '36px',
+                      borderRadius: '8px',
+                      background: '#F4EFFC',
+                      border: 'none',
+                      color: '#350B5E',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#E8DDF7')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '#F4EFFC')}
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '20px 24px', maxHeight: '76vh', overflowY: 'auto' }}>
+                {/* 1. Two Party Cards (Side by Side) */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginBottom: '18px' }}>
+                  {/* Books Party */}
+                  <div style={{ background: '#FAF5FE', border: '1.5px solid #DDD6FE', borderRadius: '12px', padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                        BOOKS PARTY (AS PER PURCHASE REGISTER)
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '17px', fontWeight: 700, color: '#1E1B4B', lineHeight: 1.25 }}>
+                      {viewItem.supplierName || 'Unknown Supplier'}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#4B5563', marginTop: '10px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>GSTIN:</span>
+                      <strong style={{ color: '#0F172A', fontWeight: 600, letterSpacing: '0.02em' }}>{viewItem.gstin || '-'}</strong>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          background: '#DCFCE7',
+                          color: '#15803D',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          lineHeight: 1
+                        }}
+                        title="GSTIN Matched"
+                      >
+                        ✓
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* GST Portal Party */}
+                  <div style={{ background: '#F0FDFA', border: '1.5px solid #A7F3D0', borderRadius: '12px', padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#0E7490', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                        GST PORTAL PARTY (AS PER GSTR-2B)
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '17px', fontWeight: 700, color: '#0F172A', lineHeight: 1.25 }}>
+                      {(viewItem.supplierName || 'Unknown Supplier').toUpperCase()}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#4B5563', marginTop: '10px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>GSTIN:</span>
+                      <strong style={{ color: '#0F172A', fontWeight: 600, letterSpacing: '0.02em' }}>{viewItem.gstin || '-'}</strong>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '18px',
+                          height: '18px',
+                          borderRadius: '50%',
+                          background: '#DCFCE7',
+                          color: '#15803D',
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          lineHeight: 1
+                        }}
+                        title="Govt Portal GSTIN"
+                      >
+                        ✓
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Card 1: BOOKS (PURCHASE REGISTER) */}
+                <div style={{ border: '1.5px solid #DDD6FE', borderRadius: '12px', overflow: 'hidden', background: '#ffffff', marginBottom: '16px', boxShadow: '0 2px 8px rgba(53, 11, 94, 0.04)' }}>
+                  <div style={{ padding: '10px 16px', background: '#F3E8FF', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E9D5FF' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#4C1D95', letterSpacing: '0.03em' }}>
+                      BOOKS (PURCHASE REGISTER)
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#581C87', fontWeight: 600 }}>
+                      {viewItem.supplierName || '-'} • {viewItem.gstin || '-'}
+                    </div>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#350B5E' }}>
+                        <th style={{ padding: '10px 12px', textAlign: 'left', width: '22%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>SOURCE / INV NO.</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '15%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>TAXABLE AMOUNT (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>IGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>CGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>SGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '16%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>TOTAL GST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '17%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>TOTAL VALUE (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ height: '52px', background: '#ffffff' }}>
+                        <td style={{ padding: '10px 12px', textAlign: 'left' }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>{viewItem.invNo || '-'}</span>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: isInvMatch ? '#15803D' : '#DC2626' }}>
+                              {isInvMatch ? '✓' : '✕'}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
+                          <span>{formatInr(viewItem.bTaxable)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: isTaxableMatch ? '#15803D' : '#DC2626' }}>
+                            {isTaxableMatch ? '✓' : '✕'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
+                          <span>{formatInr(viewItem.bIgst)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: isIgstMatch ? '#15803D' : '#DC2626' }}>
+                            {isIgstMatch ? '✓' : '✕'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
+                          <span>{formatInr(viewItem.bCgst)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: isCgstMatch ? '#15803D' : '#DC2626' }}>
+                            {isCgstMatch ? '✓' : '✕'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
+                          <span>{formatInr(viewItem.bSgst)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: isSgstMatch ? '#15803D' : '#DC2626' }}>
+                            {isSgstMatch ? '✓' : '✕'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#350B5E', fontSize: '13.5px', fontVariantNumeric: 'tabular-nums' }}>
+                          <span>{formatInr(bTotalGst)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: Math.abs(dTotalGst) <= 1 ? '#15803D' : '#DC2626' }}>
+                            {Math.abs(dTotalGst) <= 1 ? '✓' : '✕'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#350B5E', fontSize: '13.5px', fontVariantNumeric: 'tabular-nums' }}>
+                          <span>{formatInr(viewItem.bTotal)}</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 3. Card 2: GOVT GSTR-2B */}
+                <div style={{ border: '1.5px solid #A5F3FC', borderRadius: '12px', overflow: 'hidden', background: '#ffffff', marginBottom: '18px', boxShadow: '0 2px 8px rgba(14, 116, 144, 0.04)' }}>
+                  <div style={{ padding: '10px 16px', background: '#CFFAFE', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #A5F3FC' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#0E7490', letterSpacing: '0.03em' }}>
+                      GOVT GSTR-2B
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#0369A1', fontWeight: 600 }}>
+                      {(viewItem.supplierName || '-').toUpperCase()} • {viewItem.gstin || '-'}
+                    </div>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#155E75' }}>
+                        <th style={{ padding: '10px 12px', textAlign: 'left', width: '22%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>SOURCE / INV NO.</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '15%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>TAXABLE AMOUNT (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>IGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>CGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>SGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '16%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>TOTAL GST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '17%', fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', color: '#ffffff' }}>TOTAL VALUE (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ height: '52px', background: '#ffffff' }}>
+                        <td style={{ padding: '10px 12px', textAlign: 'left' }}>
+                          <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span>{viewItem.gInvNo || viewItem.invNo || '-'}</span>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#15803D' }}>
+                              ✓
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
+                          <span>{formatInr(viewItem.gTaxable)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: '#15803D' }}>
+                            ✓
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
+                          <span>{formatInr(viewItem.gIgst)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: '#15803D' }}>
+                            ✓
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
+                          <span>{formatInr(viewItem.gCgst)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: '#15803D' }}>
+                            ✓
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: '#0F172A' }}>
+                          <span>{formatInr(viewItem.gSgst)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: '#15803D' }}>
+                            ✓
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#0E7490', fontSize: '13.5px', fontVariantNumeric: 'tabular-nums' }}>
+                          <span>{formatInr(gTotalGst)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: '#15803D' }}>
+                            ✓
+                          </span>
+                        </td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#0E7490', fontSize: '13.5px', fontVariantNumeric: 'tabular-nums' }}>
+                          <span>{formatInr(viewItem.gTotal)}</span>
+                          <span style={{ marginLeft: '5px', fontSize: '12px', fontWeight: 800, color: '#15803D' }}>
+                            ✓
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 4. Action Guidance / Observation */}
+                <div
+                  style={{
+                    marginTop: '12px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    color: (isMatched || isAllFieldsMatch) ? '#15803D' : '#DC2626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <span style={{ fontSize: '14px', fontWeight: 700 }}>
+                    {(isMatched || isAllFieldsMatch) ? '✓' : '⚠'}
+                  </span>
+                  <span>
+                    {(isMatched || isAllFieldsMatch)
+                      ? `Books & GSTR-2B matched. Verified & claimed in ${viewItem.claimMonth || viewItem.month2b || workingMonth}.`
+                      : viewItem.reason || 'Books GST and 2B GST not match. Please verify.'}
+                  </span>
+                </div>
+
+                {/* Audit Observation Display if exists */}
+                {viewItem.auditNote && (
+                  <div style={{ marginTop: '16px', padding: '12px 16px', background: '#F8F6FC', borderRadius: '10px', borderLeft: '4px solid #3B1A6B' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#3B1A6B', textTransform: 'uppercase', marginBottom: '4px' }}>
+                      Saved Audit Observation ({viewItem.auditStatus || 'Pending'}):
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#1E293B', fontWeight: 500 }}>{viewItem.auditNote}</div>
+                    {viewItem.auditUpdatedAt && (
+                      <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px', fontWeight: 500 }}>
+                        Updated: {viewItem.auditUpdatedAt}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div
+                style={{
+                  padding: '14px 24px',
+                  background: '#FBFAFD',
+                  borderTop: '1px solid #EBE6F3',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center'
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewItem(null)}
+                  style={{
+                    height: '42px',
+                    padding: '0 24px',
+                    borderRadius: '8px',
+                    background: '#350B5E',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(53, 11, 94, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#250742')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#350B5E')}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ======================================================== */}
+      {/* 5. Audit & Action Modal (GST RecoManager Style)          */}
+      {/* ======================================================== */}
+      {auditItem && (() => {
+        const bTotalGst = auditItem.bIgst + auditItem.bCgst + auditItem.bSgst;
+        const gTotalGst = auditItem.gIgst + auditItem.gCgst + auditItem.gSgst;
+
+        return (
+          <div
+            className="reco-modal-backdrop"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(15, 23, 42, 0.55)',
+              backdropFilter: 'blur(3px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1050,
+              padding: '16px'
+            }}
+            onClick={() => setAuditItem(null)}
+          >
+            <div
+              className="reco-modal-card"
+              style={{
+                maxWidth: '920px',
+                width: '96%',
+                background: '#ffffff',
+                borderRadius: '16px',
+                boxShadow: '0 25px 50px -12px rgba(42, 18, 80, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+                fontFamily: "'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif",
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  padding: '20px 24px 16px 24px',
+                  background: '#ffffff',
+                  borderBottom: '1px solid #F0ECF8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px'
+                }}
+              >
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '21px', fontWeight: 700, color: '#350B5E', letterSpacing: '-0.01em' }}>
+                    Audit &amp; Verify Invoice – {auditItem.invNo}
+                  </h2>
+                  <div style={{ margin: '6px 0 0 0', fontSize: '13px', color: '#64748B', fontWeight: 500 }}>
+                    Supplier: <strong style={{ color: '#0F172A' }}>{auditItem.supplierName}</strong> ({auditItem.gstin}) • Book Month: <strong>{auditItem.originalMonth}</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '5px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      flexShrink: 0,
+                      background: auditStatus === 'Verified' ? '#DCFCE7' : auditStatus === 'Query' ? '#FEE2E2' : '#FAF5FF',
+                      color: auditStatus === 'Verified' ? '#15803D' : auditStatus === 'Query' ? '#B42318' : '#6B21A8',
+                      border: auditStatus === 'Verified' ? '1px solid #86EFAC' : auditStatus === 'Query' ? '1px solid #FCA5A5' : '1px solid #D8B4FE'
+                    }}
+                  >
+                    <span>●</span>
+                    <span>Status: {auditStatus}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAuditItem(null)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      minWidth: '36px',
+                      borderRadius: '8px',
+                      background: '#F4EFFC',
+                      border: 'none',
+                      color: '#350B5E',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#E8DDF7')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '#F4EFFC')}
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div style={{ padding: '20px 24px', maxHeight: '76vh', overflowY: 'auto' }}>
+                {/* 1. Two Party Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginBottom: '18px' }}>
+                  {/* Books Party */}
+                  <div style={{ background: '#FAF5FE', border: '1.5px solid #DDD6FE', borderRadius: '12px', padding: '14px 18px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#5B21B6', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
+                      BOOKS PARTY (AS PER PURCHASE REGISTER)
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#1E1B4B' }}>
+                      {auditItem.supplierName}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#4B5563', marginTop: '6px', fontWeight: 500 }}>
+                      GSTIN: <strong style={{ color: '#0F172A' }}>{auditItem.gstin}</strong>
+                    </div>
+                  </div>
+
+                  {/* GST Portal Party */}
+                  <div style={{ background: '#F0FDFA', border: '1.5px solid #A7F3D0', borderRadius: '12px', padding: '14px 18px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: '#0E7490', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '6px' }}>
+                      GST PORTAL PARTY (AS PER GSTR-2B)
+                    </div>
+                    <div style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A' }}>
+                      {(auditItem.supplierName).toUpperCase()}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#4B5563', marginTop: '6px', fontWeight: 500 }}>
+                      GSTIN: <strong style={{ color: '#0F172A' }}>{auditItem.gstin}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Side-by-Side Comparison Tables */}
+                {/* Books Card */}
+                <div style={{ border: '1.5px solid #DDD6FE', borderRadius: '12px', overflow: 'hidden', background: '#ffffff', marginBottom: '16px', boxShadow: '0 2px 8px rgba(53, 11, 94, 0.04)' }}>
+                  <div style={{ padding: '10px 16px', background: '#F3E8FF', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E9D5FF' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#4C1D95', letterSpacing: '0.03em' }}>
+                      BOOKS (PURCHASE REGISTER)
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#581C87', fontWeight: 600 }}>
+                      {auditItem.invNo} • Date: {auditItem.date}
+                    </div>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#350B5E' }}>
+                        <th style={{ padding: '10px 12px', textAlign: 'left', width: '22%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>SOURCE / INV NO.</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '15%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>TAXABLE AMOUNT (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>IGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>CGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>SGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '16%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>TOTAL GST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '17%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>TOTAL VALUE (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ height: '48px', background: '#ffffff' }}>
+                        <td style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#0F172A' }}>{auditItem.invNo}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{formatInr(auditItem.bTaxable)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{formatInr(auditItem.bIgst)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{formatInr(auditItem.bCgst)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{formatInr(auditItem.bSgst)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#350B5E' }}>{formatInr(bTotalGst)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#350B5E' }}>{formatInr(auditItem.bTotal)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 2B Card */}
+                <div style={{ border: '1.5px solid #A5F3FC', borderRadius: '12px', overflow: 'hidden', background: '#ffffff', marginBottom: '18px', boxShadow: '0 2px 8px rgba(14, 116, 144, 0.04)' }}>
+                  <div style={{ padding: '10px 16px', background: '#CFFAFE', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #A5F3FC' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: '#0E7490', letterSpacing: '0.03em' }}>
+                      GOVT GSTR-2B
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#0369A1', fontWeight: 600 }}>
+                      {auditItem.month2b || 'Reflected in 2B'}
+                    </div>
+                  </div>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ background: '#155E75' }}>
+                        <th style={{ padding: '10px 12px', textAlign: 'left', width: '22%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>SOURCE / INV NO.</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '15%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>TAXABLE AMOUNT (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>IGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>CGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '10%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>SGST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '16%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>TOTAL GST (₹)</th>
+                        <th style={{ padding: '10px 12px', textAlign: 'right', width: '17%', fontSize: '11px', fontWeight: 600, color: '#ffffff' }}>TOTAL VALUE (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style={{ height: '48px', background: '#ffffff' }}>
+                        <td style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#0F172A' }}>{auditItem.gInvNo || auditItem.invNo}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{formatInr(auditItem.gTaxable)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{formatInr(auditItem.gIgst)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{formatInr(auditItem.gCgst)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500, color: '#0F172A' }}>{formatInr(auditItem.gSgst)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#0E7490' }}>{formatInr(gTotalGst)}</td>
+                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: '#0E7490' }}>{formatInr(auditItem.gTotal)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* 3. Audit Controls */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px', marginTop: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#350B5E', marginBottom: '6px' }}>
+                      Audit Status
+                    </label>
+                    <select
+                      value={auditStatus}
+                      onChange={(e) => setAuditStatus(e.target.value)}
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        border: '1.5px solid #DCCFF3',
+                        borderRadius: '8px',
+                        padding: '0 12px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        background: '#ffffff',
+                        color: '#1E293B',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="Verified">Verified / Approved</option>
+                      <option value="Query">Query / Follow-up Sent</option>
+                      <option value="Pending">Pending Review</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#350B5E', marginBottom: '6px' }}>
+                      Audit Observation / Remark (Optional)
+                    </label>
+                    <textarea
+                      value={auditNote}
+                      onChange={(e) => setAuditNote(e.target.value)}
+                      rows={3}
+                      placeholder="Enter audit explanation or observation..."
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1.5px solid #DCCFF3',
+                        borderRadius: '8px',
+                        background: '#ffffff',
+                        color: '#1E293B',
+                        fontSize: '13px',
+                        fontFamily: 'inherit',
+                        outline: 'none',
+                        resize: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div style={{ marginTop: '20px', textAlign: 'right' }}>
-              <button
-                type="button"
-                onClick={() => setViewItem(null)}
+              {/* Footer */}
+              <div
                 style={{
-                  background: '#4A1A7A',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '8px 20px',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  borderRadius: 0
+                  padding: '14px 24px',
+                  background: '#FBFAFD',
+                  borderTop: '1px solid #EBE6F3',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  gap: '12px'
                 }}
               >
-                Close
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setAuditItem(null)}
+                  style={{
+                    height: '42px',
+                    padding: '0 20px',
+                    borderRadius: '8px',
+                    background: '#ffffff',
+                    color: '#475569',
+                    border: '1.5px solid #CBD5E1',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAudit}
+                  style={{
+                    height: '42px',
+                    padding: '0 22px',
+                    borderRadius: '8px',
+                    background: '#15803D',
+                    color: '#ffffff',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(21, 128, 61, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#166534')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#15803D')}
+                >
+                  Save Audit
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* AUDIT MODAL */}
-      {auditItem && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-          onClick={() => setAuditItem(null)}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              width: '90%',
-              maxWidth: '500px',
-              padding: '24px',
-              borderRadius: 0,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #e2e8f0', paddingBottom: '12px' }}>
-              <h3 style={{ margin: 0, fontSize: '18px', color: '#241a3d', fontWeight: 800 }}>
-                Audit Note: {auditItem.invNo}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setAuditItem(null)}
-                style={{ background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#64748b' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ marginTop: '16px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Audit Status
-              </label>
-              <select
-                value={auditStatus}
-                onChange={(e) => setAuditStatus(e.target.value)}
-                style={{
-                  width: '100%',
-                  border: '1px solid #cbd5e1',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  borderRadius: 0,
-                  background: '#f8fafc'
-                }}
-              >
-                <option value="Pending">Pending Review</option>
-                <option value="Verified">Verified / Approved</option>
-                <option value="Query">Query / Follow-up Sent</option>
-              </select>
-            </div>
-
-            <div style={{ marginTop: '16px' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
-                Auditor Remark / Note
-              </label>
-              <textarea
-                value={auditNote}
-                onChange={(e) => setAuditNote(e.target.value)}
-                rows={4}
-                placeholder="Write observation, supplier communication details, etc..."
-                style={{
-                  width: '100%',
-                  border: '1px solid #cbd5e1',
-                  padding: '8px 12px',
-                  fontSize: '13px',
-                  borderRadius: 0,
-                  outline: 'none',
-                  fontFamily: 'inherit'
-                }}
-              />
-            </div>
-
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setAuditItem(null)}
-                style={{
-                  background: '#f1f5f9',
-                  color: '#334155',
-                  border: '1px solid #cbd5e1',
-                  padding: '8px 16px',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  borderRadius: 0
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAudit}
-                style={{
-                  background: '#6D28D9',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '8px 20px',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  borderRadius: 0
-                }}
-              >
-                Save Audit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        );
+      })()}
     </section>
   );
 }

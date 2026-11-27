@@ -295,106 +295,104 @@ export default function NotClaimItcDetailSheet({
         </div>
       </div>
 
-      {/* 4. Controls: Search, Filter & Excel Export */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px',
-          background: '#ffffff',
-          border: '1.5px solid #e2e8f0',
-          padding: '10px 16px',
-          marginBottom: '12px',
-          borderRadius: 0,
-          flexWrap: 'wrap'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px', flexWrap: 'wrap' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search Supplier Name, GSTIN, Invoice No..."
-            style={{
-              width: '100%',
-              maxWidth: '300px',
-              border: '1px solid #cbd5e1',
-              padding: '6px 12px',
-              fontSize: '12.5px',
-              outline: 'none',
-              borderRadius: 0
-            }}
-          />
-          {searchTerm && (
+      {/* 4. Main Not Claim Table Card Container with Controls & Table */}
+      <div className="card gstr1-card" style={{ width: '100%', background: '#ffffff', border: '1px solid var(--line)', padding: '20px', borderRadius: 0, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)', boxSizing: 'border-box' }}>
+        {/* Controls: Search, Filter & Excel Export */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '16px',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px', flexWrap: 'wrap' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search Supplier Name, GSTIN, Invoice No..."
+              style={{
+                width: '100%',
+                maxWidth: '300px',
+                border: '1px solid #cbd5e1',
+                padding: '6px 12px',
+                fontSize: '12.5px',
+                outline: 'none',
+                borderRadius: 0
+              }}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', fontSize: '13px' }}
+              >
+                ✕ Clear
+              </button>
+            )}
+
+            {/* Month Filter */}
+            <select
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              style={{
+                border: '1px solid #cbd5e1',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: '#334155',
+                borderRadius: 0,
+                background: '#f8fafc'
+              }}
+            >
+              <option value="ALL">All Original Months</option>
+              {availableMonths.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+              Showing {filteredItems.length} of {syncResult.notClaimItems.length} records
+            </span>
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', fontSize: '13px' }}
+              onClick={handleExportExcel}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#7F1D1D',
+                color: '#ffffff',
+                border: 'none',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                borderRadius: 0
+              }}
             >
-              ✕ Clear
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Export Excel
             </button>
-          )}
-
-          {/* Month Filter */}
-          <select
-            value={monthFilter}
-            onChange={(e) => setMonthFilter(e.target.value)}
-            style={{
-              border: '1px solid #cbd5e1',
-              padding: '6px 10px',
-              fontSize: '12px',
-              fontWeight: 600,
-              color: '#334155',
-              borderRadius: 0,
-              background: '#f8fafc'
-            }}
-          >
-            <option value="ALL">All Original Months</option>
-            {availableMonths.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-            Showing {filteredItems.length} of {syncResult.notClaimItems.length} records
-          </span>
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: '#7F1D1D',
-              color: '#ffffff',
-              border: 'none',
-              padding: '6px 14px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              borderRadius: 0
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Export Excel
-          </button>
-        </div>
-      </div>
-
-      {/* 5. Main Not Claim Table */}
-      <div className="detail-sheet-table-wrapper" style={{ overflowX: 'auto', border: '1.5px solid #e2e8f0', background: '#ffffff' }}>
-        <table className="detail-sheet-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', color: '#1E1747' }}>
+        {/* 5. Main Not Claim Table */}
+        <div className="detail-sheet-table-wrapper" style={{ overflowX: 'auto', border: '1px solid #e2e8f0', background: '#ffffff', width: '100%' }}>
+          <table className="detail-sheet-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', color: '#1E1747' }}>
           <thead>
             {/* Top Multi-Header Row */}
             <tr style={{ background: '#2B0A4F', color: '#ffffff', textAlign: 'center' }}>
@@ -475,7 +473,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 8px',
                   textAlign: 'center',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -490,7 +487,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -505,7 +501,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 8px',
                   textAlign: 'center',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -520,7 +515,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 12px',
                   textAlign: 'left',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -535,7 +529,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'center',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -550,7 +543,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 12px',
                   textAlign: 'left',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -565,7 +557,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 12px',
                   textAlign: 'left',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -580,7 +571,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 14px',
                   textAlign: 'left',
                   background: '#4A1A7A',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.12)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -596,7 +586,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'right',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -611,7 +600,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'right',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -626,7 +614,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'right',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -641,7 +628,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'right',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.10)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -656,7 +642,6 @@ export default function NotClaimItcDetailSheet({
                   padding: '6px 10px',
                   textAlign: 'right',
                   background: '#3b1263',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.25)',
                   borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
                 }}
               >
@@ -694,8 +679,7 @@ export default function NotClaimItcDetailSheet({
                         padding: '8px 8px',
                         textAlign: 'center',
                         color: '#64748b',
-                        fontWeight: 600,
-                        borderRight: '1px solid #e2e8f0'
+                        fontWeight: 600
                       }}
                     >
                       {idx + 1}
@@ -709,8 +693,7 @@ export default function NotClaimItcDetailSheet({
                         padding: '8px 10px',
                         textAlign: 'center',
                         fontWeight: 700,
-                        color: '#334155',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#334155'
                       }}
                     >
                       {item.originalMonth}
@@ -725,8 +708,7 @@ export default function NotClaimItcDetailSheet({
                         textAlign: 'center',
                         color: '#b91c1c',
                         fontWeight: 700,
-                        fontSize: '12px',
-                        borderRight: '1px solid #e2e8f0'
+                        fontSize: '12px'
                       }}
                     >
                       {item.pendingMonthsCount} mos
@@ -744,8 +726,7 @@ export default function NotClaimItcDetailSheet({
                         fontWeight: 600,
                         whiteSpace: 'normal',
                         wordBreak: 'break-word',
-                        lineHeight: 1.4,
-                        borderRight: '1px solid #e2e8f0'
+                        lineHeight: 1.4
                       }}
                       title={displayReason}
                     >
@@ -761,8 +742,7 @@ export default function NotClaimItcDetailSheet({
                         textAlign: 'center',
                         whiteSpace: 'nowrap',
                         color: '#475569',
-                        fontSize: '12px',
-                        borderRight: '1px solid #e2e8f0'
+                        fontSize: '12px'
                       }}
                     >
                       {item.date}
@@ -777,8 +757,7 @@ export default function NotClaimItcDetailSheet({
                         textAlign: 'left',
                         fontWeight: 700,
                         color: '#1E1747',
-                        fontSize: '13px',
-                        borderRight: '1px solid #e2e8f0'
+                        fontSize: '13px'
                       }}
                     >
                       {item.invNo}
@@ -792,8 +771,7 @@ export default function NotClaimItcDetailSheet({
                         padding: '8px 12px',
                         textAlign: 'left',
                         fontFamily: 'monospace',
-                        fontSize: '12px',
-                        borderRight: '1px solid #e2e8f0'
+                        fontSize: '12px'
                       }}
                     >
                       {item.gstin}
@@ -807,8 +785,7 @@ export default function NotClaimItcDetailSheet({
                         padding: '8px 14px',
                         textAlign: 'left',
                         fontWeight: 600,
-                        color: '#1E1747',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#1E1747'
                       }}
                     >
                       {item.supplierName}
@@ -824,8 +801,7 @@ export default function NotClaimItcDetailSheet({
                         textAlign: 'right',
                         background: '#F0F7FF',
                         fontWeight: 600,
-                        color: '#1E1747',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#1E1747'
                       }}
                     >
                       {item.bTaxable === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bTaxable)}
@@ -840,8 +816,7 @@ export default function NotClaimItcDetailSheet({
                         textAlign: 'right',
                         background: '#F0F7FF',
                         fontWeight: 600,
-                        color: '#1E1747',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#1E1747'
                       }}
                     >
                       {item.bIgst === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bIgst)}
@@ -856,8 +831,7 @@ export default function NotClaimItcDetailSheet({
                         textAlign: 'right',
                         background: '#F0F7FF',
                         fontWeight: 600,
-                        color: '#1E1747',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#1E1747'
                       }}
                     >
                       {item.bCgst === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bCgst)}
@@ -872,8 +846,7 @@ export default function NotClaimItcDetailSheet({
                         textAlign: 'right',
                         background: '#F0F7FF',
                         fontWeight: 600,
-                        color: '#1E1747',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#1E1747'
                       }}
                     >
                       {item.bSgst === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bSgst)}
@@ -888,8 +861,7 @@ export default function NotClaimItcDetailSheet({
                         textAlign: 'right',
                         background: '#F0F7FF',
                         fontWeight: 700,
-                        color: '#7F1D1D',
-                        borderRight: '1px solid #e2e8f0'
+                        color: '#7F1D1D'
                       }}
                     >
                       {formatInr(item.bTotal)}
@@ -980,8 +952,7 @@ export default function NotClaimItcDetailSheet({
                     padding: '10px 12px',
                     textAlign: 'left',
                     color: '#1E1747',
-                    letterSpacing: '0.05em',
-                    borderRight: '1px solid #cbd5e1'
+                    letterSpacing: '0.05em'
                   }}
                 >
                   TOTAL ({filteredItems.length} INVOICES)
@@ -991,8 +962,7 @@ export default function NotClaimItcDetailSheet({
                     padding: '10px 10px',
                     textAlign: 'right',
                     background: '#e0f2fe',
-                    color: '#0369a1',
-                    borderRight: '1px solid #cbd5e1'
+                    color: '#0369a1'
                   }}
                 >
                   {formatInr(summaryValues.taxable)}
@@ -1002,8 +972,7 @@ export default function NotClaimItcDetailSheet({
                     padding: '10px 10px',
                     textAlign: 'right',
                     background: '#e0f2fe',
-                    color: '#0369a1',
-                    borderRight: '1px solid #cbd5e1'
+                    color: '#0369a1'
                   }}
                 >
                   {formatInr(summaryValues.igst)}
@@ -1013,8 +982,7 @@ export default function NotClaimItcDetailSheet({
                     padding: '10px 10px',
                     textAlign: 'right',
                     background: '#e0f2fe',
-                    color: '#0369a1',
-                    borderRight: '1px solid #cbd5e1'
+                    color: '#0369a1'
                   }}
                 >
                   {formatInr(summaryValues.cgst)}
@@ -1024,8 +992,7 @@ export default function NotClaimItcDetailSheet({
                     padding: '10px 10px',
                     textAlign: 'right',
                     background: '#e0f2fe',
-                    color: '#0369a1',
-                    borderRight: '1px solid #cbd5e1'
+                    color: '#0369a1'
                   }}
                 >
                   {formatInr(summaryValues.sgst)}
@@ -1035,8 +1002,7 @@ export default function NotClaimItcDetailSheet({
                     padding: '10px 10px',
                     textAlign: 'right',
                     background: '#e0f2fe',
-                    color: '#b91c1c',
-                    borderRight: '1px solid #cbd5e1'
+                    color: '#b91c1c'
                   }}
                 >
                   {formatInr(summaryValues.grandTotal)}
@@ -1047,8 +1013,7 @@ export default function NotClaimItcDetailSheet({
           )}
         </table>
       </div>
-
-
+    </div>
 
       {/* VIEW MODAL */}
       {viewItem && (

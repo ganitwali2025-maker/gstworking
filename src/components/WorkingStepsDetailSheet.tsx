@@ -399,123 +399,121 @@ export default function WorkingStepsDetailSheet({
         </div>
       </div>
 
-      {/* 4. Controls: Search Input & Excel Export Button */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px',
-          background: '#ffffff',
-          border: '1.5px solid #e2e8f0',
-          padding: '10px 16px',
-          marginBottom: '12px',
-          borderRadius: 0,
-          flexWrap: 'wrap'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search Supplier Name, GSTIN, Invoice No..."
-            style={{
-              width: '100%',
-              maxWidth: '380px',
-              border: '1px solid #cbd5e1',
-              padding: '6px 12px',
-              fontSize: '12.5px',
-              outline: 'none',
-              borderRadius: 0
-            }}
-          />
-          {searchTerm && (
+      {/* 4. Main Category Table Card Container with Controls & Table */}
+      <div className="card gstr1-card" style={{ width: '100%', background: '#ffffff', border: '1px solid var(--line)', padding: '20px', borderRadius: 0, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)', boxSizing: 'border-box' }}>
+        {/* Controls: Search Input & Excel Export Button */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '16px',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search Supplier Name, GSTIN, Invoice No..."
+              style={{
+                width: '100%',
+                maxWidth: '380px',
+                border: '1px solid #cbd5e1',
+                padding: '6px 12px',
+                fontSize: '12.5px',
+                outline: 'none',
+                borderRadius: 0
+              }}
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  fontSize: '13px'
+                }}
+              >
+                ✕ Clear
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
+              Showing {filteredRows.length} of {categoryRows.length} records
+            </span>
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
+              className="btn-gstr1 btn-refresh"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: isRefreshing ? 'not-allowed' : 'pointer'
+              }}
+              title="Reload latest reconciliation data"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className={isRefreshing ? 'spin-icon' : ''}
+              >
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+              </svg>
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: '#15803d',
+                color: '#ffffff',
                 border: 'none',
-                background: 'transparent',
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: 700,
                 cursor: 'pointer',
-                color: '#64748b',
-                fontSize: '13px'
+                borderRadius: 0
               }}
             >
-              ✕ Clear
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Export Excel
             </button>
-          )}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-            Showing {filteredRows.length} of {categoryRows.length} records
-          </span>
-          <button
-            type="button"
-            className="btn-gstr1 btn-refresh"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 14px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: isRefreshing ? 'not-allowed' : 'pointer'
-            }}
-            title="Reload latest reconciliation data"
-          >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className={isRefreshing ? 'spin-icon' : ''}
-            >
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-            </svg>
-            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: '#15803d',
-              color: '#ffffff',
-              border: 'none',
-              padding: '6px 14px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              borderRadius: 0
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Export Excel
-          </button>
-        </div>
-      </div>
-
-      {/* 5. Main Category Table with HD Visibility & Purple Headings */}
-      <div className="detail-sheet-table-wrapper">
-        <table className="detail-sheet-table">
+        {/* 5. Main Category Table with HD Visibility & Purple Headings */}
+        <div className="detail-sheet-table-wrapper" style={{ overflowX: 'auto', border: '1px solid #e2e8f0', background: '#ffffff', width: '100%' }}>
+          <table className="detail-sheet-table">
           <thead>
             <tr>
               <th style={{ width: '45px', minWidth: '45px', textAlign: 'center' }}>#</th>
@@ -598,6 +596,7 @@ export default function WorkingStepsDetailSheet({
           </tbody>
         </table>
       </div>
+    </div>
     </section>
   );
 }

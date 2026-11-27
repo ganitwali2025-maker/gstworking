@@ -7,6 +7,7 @@ export interface OldItcItem {
   originalMonth: string;
   date: string;
   invNo: string;
+  gInvNo?: string;
   gstin: string;
   supplierName: string;
 
@@ -315,6 +316,7 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
       item.itcMatchRatio = '6/6';
       item.reason = `6/6 Match – Reflected in 2B (${gMonth})`;
       item.mismatchFields = [];
+      item.gInvNo = perfect2b.invNo || perfect2b.n || item.invNo;
       item.gTaxable = gTaxable;
       item.gIgst = gIgst;
       item.gCgst = gCgst;
@@ -328,6 +330,7 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
       item.itcMatchRatio = `${highestFieldMatch}/6`;
       item.reason = `Wrong detail in 2B: ${partialMismatches.join(' / ')}`;
       item.mismatchFields = partialMismatches;
+      item.gInvNo = partial2b.invNo || partial2b.n;
       const gTaxable = round2(Number(partial2b.taxable || partial2b.t || 0));
       const gIgst = round2(Number(partial2b.igst || partial2b.i || 0));
       const gCgst = round2(Number(partial2b.cgst || partial2b.c || 0));
