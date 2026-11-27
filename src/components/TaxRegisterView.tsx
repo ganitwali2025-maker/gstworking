@@ -536,17 +536,18 @@ export default function TaxRegisterView({
               type="button"
               className="btn-gstr1 btn-lock"
               onClick={handleToggleLockClick}
+              title={isLocked ? "Unlock Sheet" : "Lock Sheet"}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 {isLocked ? (
                   <>
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                   </>
                 ) : (
                   <>
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
                   </>
                 )}
               </svg>
@@ -817,8 +818,8 @@ export default function TaxRegisterView({
 
       {/* Confirm Dialog Modal */}
       {confirmDialog && (
-        <div className="mo">
-          <div className="mb" style={{ maxWidth: '440px' }}>
+        <div className="mo" style={{ zIndex: 1050 }} onClick={() => setConfirmDialog(null)}>
+          <div className="mb" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
             <h3>{confirmDialog.title}</h3>
             <p style={{ color: 'var(--mute)', margin: '10px 0 16px' }}>{confirmDialog.message}</p>
             <div className="fr">
@@ -827,8 +828,9 @@ export default function TaxRegisterView({
                 type="button"
                 className="pri"
                 onClick={() => {
-                  confirmDialog.onConfirm();
+                  const onConfirm = confirmDialog.onConfirm;
                   setConfirmDialog(null);
+                  onConfirm();
                 }}
               >
                 {confirmDialog.confirmLabel || 'Confirm'}

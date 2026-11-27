@@ -232,14 +232,23 @@ export function useGstStore() {
 
   // Sync with API / Google Sheets when available
   const fetchApiInvoices = async () => {
+    const currentLock = (() => {
+      try {
+        return localStorage.getItem(LOCAL_STORAGE_KEY_LOCK) === '1';
+      } catch {
+        return isLocked;
+      }
+    })();
+
     try {
       const res = await fetch('/api/invoices');
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
           setInvoices(json.data);
-          persistInvoices(json.data, !!json.locked);
-          setIsLocked(!!json.locked);
+          const effectiveLock = typeof json.locked === 'boolean' ? json.locked : currentLock;
+          persistInvoices(json.data, effectiveLock);
+          setIsLocked(effectiveLock);
           return;
         }
       }
@@ -251,7 +260,8 @@ export function useGstStore() {
       if (sheetRes.success && Array.isArray(sheetRes.rows)) {
         const mapped = sheetRes.rows.map((r: any) => mapSheetRowToAppRecord(r.values || r, 'GSTR-1')).filter(Boolean);
         setInvoices(mapped);
-        persistInvoices(mapped, false);
+        persistInvoices(mapped, currentLock);
+        setIsLocked(currentLock);
         return;
       }
     } catch (_) {}
@@ -532,22 +542,31 @@ export function useGstStore() {
   const toggleLock = async (locked?: boolean) => {
     const newLock = typeof locked === 'boolean' ? locked : !isLocked;
     setIsLocked(newLock);
-    persistInvoices(invoices, newLock);
     try {
-      const res = await fetch('/api/invoices/actions/toggle-lock', {
+      localStorage.setItem(LOCAL_STORAGE_KEY_LOCK, newLock ? '1' : '0');
+    } catch (e) {}
+    persistInvoices(invoices, newLock);
+    showToast(newLock ? 'Sheet locked' : 'Sheet unlocked');
+
+    // 1. Backend sync
+    try {
+      await fetch('/api/invoices/actions/toggle-lock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ locked: newLock })
       });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.sheetWarning) {
-          showToast(json.sheetWarning);
-          return;
-        }
-      }
     } catch (e) {}
-    showToast(newLock ? 'Sheet locked' : 'Sheet unlocked');
+
+    // 2. Direct Google Sheets sync fallback
+    try {
+      const ids = invoices.map((r) => r.id);
+      await syncModuleToSheets({
+        action: newLock ? 'lock' : 'unlock',
+        sheet: 'GSTR-1',
+        headers: GSTR1_SHEET_HEADERS,
+        ids
+      });
+    } catch (e) {}
   };
 
   const syncGoogleSheets = async (): Promise<{ success: boolean; count?: number; message?: string }> => {

@@ -475,28 +475,18 @@ export const toggleLock = async (req, res) => {
     db.locked = newLock;
     saveDb(db);
 
-    let sheetWarning = null;
     try {
       const invoiceIds = (db.invoices || []).map(x => x.id);
-      const sheetRes = newLock
-        ? await googleSheets.lockSheet(invoiceIds)
-        : await googleSheets.unlockSheet(invoiceIds);
-
-      if (!sheetRes.ok && !sheetRes.skipped) {
-        sheetWarning = newLock
-          ? 'App me lock ho gaya, Sheet protection fail hui.'
-          : 'App me unlock ho gaya, Sheet unlock fail hui.';
+      if (newLock) {
+        await googleSheets.lockSheet(invoiceIds);
+      } else {
+        await googleSheets.unlockSheet(invoiceIds);
       }
-    } catch (_) {
-      sheetWarning = newLock
-        ? 'App me lock ho gaya, Sheet protection fail hui.'
-        : 'App me unlock ho gaya, Sheet unlock fail hui.';
-    }
+    } catch (_) {}
 
     res.json({
       success: true,
       locked: db.locked,
-      sheetWarning,
       message: db.locked ? 'Sheet locked' : 'Sheet unlocked'
     });
   } catch (error) {
