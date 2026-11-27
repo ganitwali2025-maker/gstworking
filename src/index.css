@@ -414,6 +414,16 @@ select.chip {
   padding: 14px 10px 10px;
 }
 
+.scroll.scroll-steps {
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 14px 24px 0 24px !important;
+  height: 100% !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+}
+
 .banner {
   border-radius: 0;
   padding: 22px 24px;
@@ -428,11 +438,15 @@ select.chip {
 }
 
 .banner.banner-steps {
-  padding: 20px 24px;
-  min-height: 58px;
+  flex-shrink: 0;
+  margin-top: 0;
+  padding: 16px 24px;
+  min-height: 52px;
   align-items: center;
   border-radius: 0;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
+  background: var(--itc);
+  box-shadow: 0 2px 8px rgba(53, 11, 94, 0.15);
 }
 
 .banner h1 {
@@ -682,6 +696,12 @@ tfoot td {
 #v-steps.steps-container {
   font-family: 'Bricolage Grotesque', sans-serif;
   width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 28px;
+  padding-right: 4px;
 }
 
 .steps-cards-grid {
@@ -759,6 +779,30 @@ tfoot td {
   transform: translateY(-4px);
   border-color: rgba(220, 38, 38, 0.70) !important;
   box-shadow: 0 12px 30px -4px rgba(220, 38, 38, 0.35), 0 4px 14px -2px rgba(220, 38, 38, 0.22) !important;
+}
+
+/* Violet Card: Old ITC */
+.step-card.step-card-violet {
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.step-card.step-card-violet:hover {
+  transform: translateY(-4px);
+  border-color: rgba(109, 40, 217, 0.70) !important;
+  box-shadow: 0 12px 30px -4px rgba(109, 40, 217, 0.35), 0 4px 14px -2px rgba(109, 40, 217, 0.22) !important;
+}
+
+/* Dark Red Card: Not Claim ITC */
+.step-card.step-card-darkred {
+  border: 1.5px solid #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.step-card.step-card-darkred:hover {
+  transform: translateY(-4px);
+  border-color: rgba(127, 29, 29, 0.70) !important;
+  box-shadow: 0 12px 30px -4px rgba(127, 29, 29, 0.35), 0 4px 14px -2px rgba(127, 29, 29, 0.22) !important;
 }
 
 /* Top Header: Left Icon Box, Right Step Number */
@@ -896,42 +940,57 @@ tfoot td {
   box-shadow: 0 6px 22px rgba(76, 29, 149, 0.65) !important;
 }
 
-/* Green Action Button */
+/* Dark Green Action Button (Matched Invoices) */
 .step-action-btn.btn-green {
-  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%) !important;
+  background: linear-gradient(135deg, #14532d 0%, #166534 100%) !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 14px rgba(22, 163, 74, 0.40), 0 1px 3px rgba(0, 0, 0, 0.10) !important;
+  box-shadow: 0 4px 14px rgba(20, 83, 45, 0.45), 0 1px 3px rgba(0, 0, 0, 0.12) !important;
 }
 
 .step-action-btn.btn-green:hover {
-  background: linear-gradient(135deg, #166534 0%, #15803d 100%) !important;
+  background: linear-gradient(135deg, #052e16 0%, #14532d 100%) !important;
   transform: translateY(-1.5px);
-  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.60) !important;
+  box-shadow: 0 6px 20px rgba(20, 83, 45, 0.65) !important;
 }
 
-/* Red Action Button */
-.step-action-btn.btn-red {
-  background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%) !important;
+/* Dark Red Action Button (Not in Books, Not in 2B, Not Claim ITC) */
+.step-action-btn.btn-red,
+.step-action-btn.btn-darkred {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
   color: #ffffff !important;
-  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.40), 0 1px 3px rgba(0, 0, 0, 0.10) !important;
+  box-shadow: 0 4px 14px rgba(127, 29, 29, 0.45), 0 1px 3px rgba(0, 0, 0, 0.12) !important;
 }
 
-.step-action-btn.btn-red:hover {
-  background: linear-gradient(135deg, #991b1b 0%, #b91c1c 100%) !important;
+.step-action-btn.btn-red:hover,
+.step-action-btn.btn-darkred:hover {
+  background: linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%) !important;
   transform: translateY(-1.5px);
-  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.60) !important;
+  box-shadow: 0 6px 20px rgba(127, 29, 29, 0.65) !important;
 }
 
-.step-card-icon-box.icon-green {
-  background: #ecfdf5 !important;
-  border-color: rgba(16, 185, 129, 0.25) !important;
-  color: #16a34a !important;
+/* Dark Violet Action Button (Old ITC) */
+.step-action-btn.btn-violet {
+  background: linear-gradient(135deg, #4c1d95 0%, #3b0764 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(76, 29, 149, 0.45), 0 1px 3px rgba(0, 0, 0, 0.12) !important;
 }
 
-.step-card-icon-box.icon-red {
-  background: #fff1f2 !important;
-  border-color: rgba(239, 68, 68, 0.25) !important;
-  color: #dc2626 !important;
+.step-action-btn.btn-violet:hover {
+  background: linear-gradient(135deg, #3b0764 0%, #2e1065 100%) !important;
+  transform: translateY(-1.5px);
+  box-shadow: 0 6px 22px rgba(76, 29, 149, 0.65) !important;
+}
+
+.step-card-icon-box.icon-violet {
+  background: #f5f3ff !important;
+  border-color: rgba(109, 40, 217, 0.25) !important;
+  color: #6D28D9 !important;
+}
+
+.step-card-icon-box.icon-darkred {
+  background: #fef2f2 !important;
+  border-color: rgba(127, 29, 29, 0.25) !important;
+  color: #7F1D1D !important;
 }
 
 .step-action-btn:active {
@@ -3383,29 +3442,36 @@ tfoot td {
   font-weight: 800 !important;
 }
 
-/* Patli safed vertical line Books aur 2B ke beech */
+/* Patli subtle vertical line Books aur 2B ke beech */
 .reco-books-divider {
-  border-right: 2px solid #ffffff !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.25) !important;
 }
 
-/* Ensure headings stay identical uniform purple with crisp white borders & compact sleek height */
+/* Ensure headings stay identical uniform purple with subtle borders & Bricolage Grotesque font */
 .reco-table thead th {
-  padding: 6px 10px !important;
-  font-size: 11px !important;
-  line-height: 1.25 !important;
-  border-right: 1.5px solid #ffffff !important;
-  border-bottom: 1.5px solid #ffffff !important;
-  border-top: 1.5px solid #ffffff !important;
+  padding: 7px 10px !important;
+  font-family: 'Bricolage Grotesque', sans-serif !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  letter-spacing: 0.03em !important;
+  -webkit-font-smoothing: antialiased !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.10) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-top: none !important;
+  border-left: none !important;
 }
 
 .reco-table thead tr:first-child th:first-child {
-  border-left: 1.5px solid #ffffff !important;
+  border-left: none !important;
 }
 
 .reco-table thead th.reco-group-th {
-  padding: 5px 8px !important;
-  font-size: 11.5px !important;
-  letter-spacing: 0.06em !important;
+  padding: 7px 10px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.05em !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
 }
 
 .reco-table thead th.reco-group-books,
@@ -3415,9 +3481,10 @@ tfoot td {
 
 .reco-table thead tr.reco-subhead-tr th {
   background: #350B5E !important;
-  padding: 4px 6px !important;
-  font-size: 10px !important;
-  line-height: 1.2 !important;
+  padding: 6px 8px !important;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  line-height: 1.25 !important;
 }
 
 /* ============================================================= */
@@ -3430,5 +3497,140 @@ tfoot td {
 .reco-table tbody tr.reco-row-not-match:hover td:not(.reco-gst-cell):not(.reco-actions-col) {
   background: #FEF2F2 !important;
   border-bottom: 1px solid #FEE2E2 !important;
+}
+
+/* ============================================================= */
+/* WORKING STEPS DETAIL SHEETS (HD VISIBILITY & PURPLE HEADINGS) */
+/* ============================================================= */
+
+.detail-sheet-page {
+  font-family: 'Bricolage Grotesque', sans-serif !important;
+}
+
+.detail-sheet-table-wrapper {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  overflow-x: auto;
+  border-radius: 0;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-family: 'Bricolage Grotesque', sans-serif !important;
+}
+
+/* Custom Visible Scrollbar */
+.detail-sheet-table-wrapper::-webkit-scrollbar {
+  height: 9px;
+  width: 9px;
+}
+.detail-sheet-table-wrapper::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.detail-sheet-table-wrapper::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 0;
+}
+.detail-sheet-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.detail-sheet-table {
+  width: 100%;
+  min-width: 1560px;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #1E1747;
+  font-family: 'Bricolage Grotesque', sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sticky Headings with Purple Background (#4A1A7A) */
+.detail-sheet-table thead th {
+  position: sticky;
+  top: 0;
+  background: #4A1A7A !important;
+  color: #FFFFFF !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  vertical-align: middle !important;
+  padding: 10px 12px !important;
+  line-height: 1.35 !important;
+  white-space: nowrap !important;
+  border-bottom: 2px solid #350B5E !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.15) !important;
+  z-index: 5;
+  font-family: 'Bricolage Grotesque', sans-serif !important;
+}
+
+/* Table Body Rows */
+.detail-sheet-table tbody tr {
+  min-height: 40px;
+  height: 40px;
+  transition: background-color 0.12s ease;
+}
+
+.detail-sheet-table tbody tr:nth-child(even) {
+  background: #ffffff;
+}
+
+.detail-sheet-table tbody tr:nth-child(odd) {
+  background: #FAF8FD;
+}
+
+.detail-sheet-table tbody tr:hover {
+  background: #F3EBFE !important;
+}
+
+/* Table Cells */
+.detail-sheet-table tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #1E1747;
+  line-height: 1.4;
+  font-family: 'Bricolage Grotesque', sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Amount Cells */
+.detail-sheet-table .amt-cell {
+  text-align: right;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #1E1747;
+  font-family: 'Bricolage Grotesque', sans-serif !important;
+}
+
+.detail-sheet-table .amt-cell-zero {
+  color: #6B6690 !important;
+  font-weight: 500 !important;
+}
+
+.detail-sheet-table .amt-cell-neg {
+  color: #B91C1C !important;
+  font-weight: 700 !important;
+}
+
+/* Footer Row */
+.detail-sheet-table tfoot tr {
+  background: #240742;
+  color: #ffffff;
+  font-weight: 800;
+  font-family: 'Bricolage Grotesque', sans-serif !important;
+}
+
+.detail-sheet-table tfoot td {
+  padding: 12px 12px;
+  vertical-align: middle;
+  border-top: 2px solid #350B5E;
+  font-size: 13.5px;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  font-family: 'Bricolage Grotesque', sans-serif !important;
 }
 

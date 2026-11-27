@@ -1873,12 +1873,19 @@ export default function ReconciliationView({
             <thead>
               {/* Group Header Tier */}
               <tr>
-                <th rowSpan={2} style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>STATUS</th>
-                <th rowSpan={2} style={{ width: '105px', minWidth: '105px', textAlign: 'center' }}>2B MONTH</th>
-                <th rowSpan={2} style={{ width: '95px', minWidth: '95px', textAlign: 'center' }}>DATE</th>
-                <th rowSpan={2} style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>INVOICE NO.</th>
-                <th rowSpan={2} style={{ width: '155px', minWidth: '155px', textAlign: 'center' }}>SUPPLIER GSTIN</th>
-                <th rowSpan={2} style={{ width: '220px', minWidth: '220px', textAlign: 'center' }}>SUPPLIER NAME</th>
+                {/* Group Heading: Invoice & Status Details (6 cols) */}
+                <th
+                  colSpan={6}
+                  className="reco-group-th"
+                  style={{
+                    background: '#350B5E',
+                    color: '#ffffff',
+                    textAlign: 'center',
+                    minWidth: '855px'
+                  }}
+                >
+                  INVOICE &amp; STATUS DETAILS
+                </th>
 
                 {/* Group Heading: Books (4 cols) */}
                 <th colSpan={4} className="reco-group-th reco-group-books reco-books-divider" style={{ minWidth: '445px', background: '#350B5E' }}>
@@ -1890,13 +1897,19 @@ export default function ReconciliationView({
                   GOVT GSTR-2B
                 </th>
 
-
-
                 <th rowSpan={2} style={{ width: '145px', minWidth: '145px', textAlign: 'center' }}>ACTION</th>
               </tr>
 
               {/* Subheader Tier */}
               <tr className="reco-subhead-tr">
+                {/* Invoice & Status Subheaders (6 cols) */}
+                <th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>STATUS</th>
+                <th style={{ width: '105px', minWidth: '105px', textAlign: 'center' }}>2B MONTH</th>
+                <th style={{ width: '95px', minWidth: '95px', textAlign: 'center' }}>DATE</th>
+                <th style={{ width: '140px', minWidth: '140px', textAlign: 'center' }}>INVOICE NO.</th>
+                <th style={{ width: '155px', minWidth: '155px', textAlign: 'center' }}>SUPPLIER GSTIN</th>
+                <th style={{ width: '220px', minWidth: '220px', textAlign: 'center' }}>SUPPLIER NAME</th>
+
                 {/* Books Subheaders (4 cols) */}
                 <th style={{ width: '115px', minWidth: '115px', background: '#350B5E' }}>TAXABLE</th>
                 <th style={{ width: '110px', minWidth: '110px', background: '#350B5E' }}>IGST</th>
@@ -1908,8 +1921,6 @@ export default function ReconciliationView({
                 <th style={{ width: '110px', minWidth: '110px', background: '#350B5E' }}>IGST</th>
                 <th style={{ width: '110px', minWidth: '110px', background: '#350B5E' }}>CGST</th>
                 <th style={{ width: '110px', minWidth: '110px', background: '#350B5E' }}>SGST</th>
-
-
               </tr>
             </thead>
 

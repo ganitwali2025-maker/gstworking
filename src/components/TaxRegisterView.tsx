@@ -735,8 +735,8 @@ export default function TaxRegisterView({
                         {invoices.length === 0
                           ? 'No invoices in register. Click “Import” to load records.'
                           : searchQuery.trim()
-                          ? `No matching invoices found for "${searchQuery}".`
-                          : `No invoices found matching ${selectedMonth !== 'ALL' ? selectedMonth : ''} ${selectedFy !== 'ALL' ? selectedFy : ''}.`}
+                            ? `No matching invoices found for "${searchQuery}".`
+                            : `No invoices found matching ${selectedMonth !== 'ALL' ? selectedMonth : ''} ${selectedFy !== 'ALL' ? selectedFy : ''}.`}
                       </span>
                       {searchQuery.trim() && (
                         <button
@@ -766,7 +766,7 @@ export default function TaxRegisterView({
                             try {
                               localStorage.removeItem('gstr1_selected_fy');
                               localStorage.removeItem('gstr1_selected_month');
-                            } catch {}
+                            } catch { }
                             updateQueryParams({ fy: 'ALL', month: 'ALL' });
                           }}
                           style={{
@@ -857,14 +857,14 @@ export default function TaxRegisterView({
           if (importedFy) {
             try {
               localStorage.setItem('gstr1_selected_fy', importedFy);
-            } catch {}
+            } catch { }
             updateQueryParams({ fy: importedFy });
             if (setFy) setFy(importedFy);
           }
           if (importedMonth) {
             try {
               localStorage.setItem('gstr1_selected_month', importedMonth);
-            } catch {}
+            } catch { }
             updateQueryParams({ month: importedMonth });
             if (setMonth) setMonth(importedMonth);
           }

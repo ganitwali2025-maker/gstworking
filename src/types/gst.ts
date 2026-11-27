@@ -10,7 +10,9 @@ export type ViewType =
   | 'g2b'
   | 'reco-matched'
   | 'reco-missing-books'
-  | 'reco-missing-2b';
+  | 'reco-missing-2b'
+  | 'old-itc'
+  | 'not-claim-itc';
 
 export interface InvoiceRecord {
   id: string;
@@ -59,6 +61,7 @@ export interface BusinessSettings {
   dueDateReminder: boolean;
   mismatchAlert: boolean;
   monthlySummaryEmail: boolean;
+  itcClaimLastDate?: string;
 }
 
 export interface RcmItem {

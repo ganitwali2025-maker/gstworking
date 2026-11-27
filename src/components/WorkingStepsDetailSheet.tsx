@@ -75,6 +75,26 @@ function formatInr(val: number): string {
   });
 }
 
+function renderAmountCell(val: number, isTotal = false) {
+  const isZero = Math.abs(val) < 0.005;
+  const isNegative = val < -0.005;
+  const formatted = Math.abs(val).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  const displayStr = isNegative ? `-${formatted}` : formatted;
+
+  let className = 'amt-cell';
+  if (isNegative) className += ' amt-cell-neg';
+  else if (isZero) className += ' amt-cell-zero';
+
+  return (
+    <span className={className} style={isTotal ? { fontWeight: 800, fontSize: '14px' } : undefined}>
+      {displayStr}
+    </span>
+  );
+}
+
 function parseRecordMonth(item: any, defaultMonthPrefix: string = 'Oct'): string {
   if (item.month && typeof item.month === 'string' && item.month.includes('-')) {
     return item.month.trim();
@@ -283,50 +303,6 @@ export default function WorkingStepsDetailSheet({
 
   return (
     <section className="detail-sheet-page" style={{ padding: '4px 0 24px 0' }}>
-      {/* 1. Header Bar with Title and Back to Steps Button */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: '#ffffff',
-          border: '1.5px solid #e2e8f0',
-          padding: '14px 20px',
-          marginBottom: '16px',
-          borderRadius: 0
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div
-            style={{
-              width: '42px',
-              height: '42px',
-              background: config.statusPillBg,
-              color: config.badgeColor,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: `1.5px solid ${config.statusPillBorder}`,
-              borderRadius: 0
-            }}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <polyline points="9 15 11 17 15 12" />
-            </svg>
-          </div>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '19px', fontWeight: 800, color: '#241a3d', letterSpacing: '-0.02em' }}>
-              {config.title}
-            </h1>
-            <p style={{ margin: '3px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
-              {config.subTitle} ({workingMonth})
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* 2. Total Card Box (with left colored border & 4 metrics) */}
       <div
         style={{
@@ -537,132 +513,89 @@ export default function WorkingStepsDetailSheet({
         </div>
       </div>
 
-      {/* 5. Main Category Table */}
-      <div
-        style={{
-          background: '#ffffff',
-          border: '1.5px solid #e2e8f0',
-          overflowX: 'auto',
-          borderRadius: 0
-        }}
-      >
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: '12px',
-            textAlign: 'left'
-          }}
-        >
+      {/* 5. Main Category Table with HD Visibility & Purple Headings */}
+      <div className="detail-sheet-table-wrapper">
+        <table className="detail-sheet-table">
           <thead>
-            <tr style={{ background: '#350b5e', color: '#ffffff' }}>
-              <th style={{ padding: '8px 10px', fontWeight: 700, width: '40px', borderRight: '1px solid rgba(255,255,255,0.2)', textAlign: 'center' }}>#</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.2)' }}>STATUS</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.2)' }}>2B MONTH</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.2)' }}>DATE</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.2)' }}>INVOICE NO.</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.2)' }}>SUPPLIER GSTIN</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.2)' }}>SUPPLIER NAME</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'right', borderRight: '1px solid rgba(255,255,255,0.2)' }}>TAXABLE (₹)</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'right', borderRight: '1px solid rgba(255,255,255,0.2)' }}>IGST (₹)</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'right', borderRight: '1px solid rgba(255,255,255,0.2)' }}>CGST (₹)</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'right', borderRight: '1px solid rgba(255,255,255,0.2)' }}>SGST (₹)</th>
-              <th style={{ padding: '8px 12px', fontWeight: 700, textAlign: 'right' }}>TOTAL (₹)</th>
+            <tr>
+              <th style={{ width: '45px', minWidth: '45px', textAlign: 'center' }}>#</th>
+              <th style={{ width: '120px', minWidth: '120px', textAlign: 'center' }}>STATUS</th>
+              <th style={{ width: '100px', minWidth: '100px', textAlign: 'center' }}>2B MONTH</th>
+              <th style={{ width: '110px', minWidth: '110px', textAlign: 'left' }}>DATE</th>
+              <th style={{ width: '165px', minWidth: '165px', textAlign: 'left' }}>INVOICE NO.</th>
+              <th style={{ width: '160px', minWidth: '160px', textAlign: 'left' }}>SUPPLIER GSTIN</th>
+              <th style={{ width: '250px', minWidth: '250px', textAlign: 'left' }}>SUPPLIER NAME</th>
+              <th style={{ width: '135px', minWidth: '135px', textAlign: 'right' }}>TAXABLE (₹)</th>
+              <th style={{ width: '115px', minWidth: '115px', textAlign: 'right' }}>IGST (₹)</th>
+              <th style={{ width: '115px', minWidth: '115px', textAlign: 'right' }}>CGST (₹)</th>
+              <th style={{ width: '115px', minWidth: '115px', textAlign: 'right' }}>SGST (₹)</th>
+              <th style={{ width: '135px', minWidth: '135px', textAlign: 'right' }}>TOTAL (₹)</th>
             </tr>
           </thead>
           <tbody>
             {filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={12} style={{ padding: '36px 16px', textAlign: 'center', color: '#64748b' }}>
+                <td colSpan={12} style={{ padding: '42px 16px', textAlign: 'center', color: '#6B6690', fontSize: '14px', fontWeight: 600 }}>
                   No invoices found matching selected criteria.
                 </td>
               </tr>
             ) : (
               filteredRows.map((row, idx) => (
-                <tr
-                  key={row.id || idx}
-                  style={{
-                    background: idx % 2 === 0 ? '#ffffff' : '#f8fafc',
-                    borderBottom: '1px solid #e2e8f0'
-                  }}
-                >
-                  <td style={{ padding: '8px 10px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
+                <tr key={row.id || idx}>
+                  <td style={{ width: '45px', minWidth: '45px', textAlign: 'center', fontWeight: 700, color: '#1E1747' }}>
                     {idx + 1}
                   </td>
-                  <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+                  <td style={{ width: '120px', minWidth: '120px', textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <span
                       style={{
                         display: 'inline-block',
-                        padding: '3px 8px',
-                        fontSize: '11px',
+                        padding: '4px 9px',
+                        fontSize: '11.5px',
                         fontWeight: 700,
                         background: config.statusPillBg,
                         color: config.statusPillColor,
-                        border: `1px solid ${config.statusPillBorder}`,
-                        borderRadius: 0
+                        border: `1.5px solid ${config.statusPillBorder}`,
+                        borderRadius: 0,
+                        whiteSpace: 'nowrap'
                       }}
                     >
                       {row.status}
                     </span>
                   </td>
-                  <td style={{ padding: '8px 12px', color: '#334155', fontWeight: 600 }}>
+                  <td style={{ width: '100px', minWidth: '100px', textAlign: 'center', color: '#1E1747', fontWeight: 600 }}>
                     {row.month2b}
                   </td>
-                  <td style={{ padding: '8px 12px', color: '#334155', whiteSpace: 'nowrap' }}>
+                  <td style={{ width: '110px', minWidth: '110px', color: '#1E1747', whiteSpace: 'nowrap', fontWeight: 500 }}>
                     {row.date}
                   </td>
-                  <td style={{ padding: '8px 12px', color: '#0f172a', fontWeight: 700 }}>
+                  <td style={{ width: '165px', minWidth: '165px', textAlign: 'left', fontWeight: 700, color: '#1E1747', fontSize: '14px' }}>
                     {row.invNo}
                   </td>
-                  <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '11.5px', color: '#334155' }}>
+                  <td style={{ width: '160px', minWidth: '160px', fontFamily: 'monospace, monospace', fontSize: '12.5px', color: '#1E1747', fontWeight: 600 }}>
                     {row.gstin}
                   </td>
-                  <td style={{ padding: '8px 12px', color: '#0f172a', fontWeight: 600 }}>
+                  <td style={{ width: '250px', minWidth: '250px', textAlign: 'left', fontWeight: 600, color: '#1E1747', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                     {row.supplierName}
                   </td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#0f172a', fontWeight: 600 }}>
-                    {row.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="amt-cell" style={{ width: '135px', minWidth: '135px' }}>
+                    {renderAmountCell(row.taxable)}
                   </td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#334155' }}>
-                    {row.igst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="amt-cell" style={{ width: '115px', minWidth: '115px' }}>
+                    {renderAmountCell(row.igst)}
                   </td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#334155' }}>
-                    {row.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="amt-cell" style={{ width: '115px', minWidth: '115px' }}>
+                    {renderAmountCell(row.cgst)}
                   </td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#334155' }}>
-                    {row.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="amt-cell" style={{ width: '115px', minWidth: '115px' }}>
+                    {renderAmountCell(row.sgst)}
                   </td>
-                  <td style={{ padding: '8px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#350b5e', fontWeight: 800 }}>
-                    {row.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <td className="amt-cell" style={{ width: '135px', minWidth: '135px' }}>
+                    {renderAmountCell(row.total, true)}
                   </td>
                 </tr>
               ))
             )}
           </tbody>
-          {filteredRows.length > 0 && (
-            <tfoot>
-              <tr style={{ background: '#240742', color: '#ffffff', fontWeight: 800 }}>
-                <td colSpan={7} style={{ padding: '10px 14px', textAlign: 'left', letterSpacing: '0.04em' }}>
-                  TOTAL ({filteredRows.length} INVOICES)
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  {summaryValues.taxable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  {summaryValues.igst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  {summaryValues.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                  {summaryValues.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td style={{ padding: '10px 12px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#fef08a' }}>
-                  {summaryValues.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-              </tr>
-            </tfoot>
-          )}
         </table>
       </div>
     </section>

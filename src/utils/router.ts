@@ -12,7 +12,9 @@ export const ROUTE_PATH_MAP: Record<ViewType, string> = {
   set: '/settings',
   'reco-matched': '/reco-matched',
   'reco-missing-books': '/missing-in-books',
-  'reco-missing-2b': '/missing-in-2b'
+  'reco-missing-2b': '/missing-in-2b',
+  'old-itc': '/old-itc',
+  'not-claim-itc': '/not-claim-itc'
 };
 
 export const PATH_VIEW_MAP: Record<string, ViewType> = {
@@ -28,6 +30,8 @@ export const PATH_VIEW_MAP: Record<string, ViewType> = {
   '/reco-matched': 'reco-matched',
   '/missing-in-books': 'reco-missing-books',
   '/missing-in-2b': 'reco-missing-2b',
+  '/old-itc': 'old-itc',
+  '/not-claim-itc': 'not-claim-itc',
   // Direct aliases for convenience
   '/itc': 'itc',
   '/liab': 'liab',
@@ -155,5 +159,5 @@ export function updateQueryParams(params: { fy?: string; month?: string; tab?: s
     if (newUrl !== currentUrl) {
       window.history.replaceState(window.history.state, '', newUrl);
     }
-  } catch {}
+  } catch { }
 }
