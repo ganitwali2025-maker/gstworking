@@ -1,5 +1,4 @@
 import { cleanStr, cleanInv, round2, ALL_FY_MONTHS, getFyMonthList } from './recoSyncService';
-import { loadRegisterRows, REGISTER_TABS } from './registerService';
 import defaultRegisters from '../data/defaultRegisters.json';
 
 export interface OldItcItem {
@@ -39,6 +38,7 @@ export interface OldItcItem {
   // Audit notes
   auditStatus?: string;
   auditNote?: string;
+  auditUpdatedAt?: string;
 
   manualNotClaim?: boolean;
   updatedAt: number;
@@ -103,25 +103,27 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
   notClaimTotalItc: number;
 } {
   // 1. Load registers
-  let booksRows = loadRegisterRows(REGISTER_TABS.ITC_PURCHASE);
-  if (!booksRows || !Array.isArray(booksRows) || booksRows.length === 0) {
-    try {
-      const raw = localStorage.getItem('itc_register_v1');
-      if (raw) booksRows = JSON.parse(raw);
-    } catch {}
-  }
-  if (!booksRows || !Array.isArray(booksRows) || booksRows.length === 0) {
+  let booksRows: any[] = [];
+  try {
+    const raw = localStorage.getItem('itc_register_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) booksRows = parsed;
+    }
+  } catch {}
+  if (!booksRows.length) {
     booksRows = (defaultRegisters as any)?.itc || [];
   }
 
-  let gstr2bRows = loadRegisterRows(REGISTER_TABS.GSTR2B);
-  if (!gstr2bRows || !Array.isArray(gstr2bRows) || gstr2bRows.length === 0) {
-    try {
-      const raw = localStorage.getItem('gstr2b_register_v1');
-      if (raw) gstr2bRows = JSON.parse(raw);
-    } catch {}
-  }
-  if (!gstr2bRows || !Array.isArray(gstr2bRows) || gstr2bRows.length === 0) {
+  let gstr2bRows: any[] = [];
+  try {
+    const raw = localStorage.getItem('gstr2b_register_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) gstr2bRows = parsed;
+    }
+  } catch {}
+  if (!gstr2bRows.length) {
     gstr2bRows = (defaultRegisters as any)?.g2b || [];
   }
 
@@ -430,6 +432,13 @@ export function updateOldItcAudit(id: string, auditStatus: string, auditNote: st
   if (target) {
     target.auditStatus = auditStatus;
     target.auditNote = auditNote;
+    target.auditUpdatedAt = new Date().toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
     target.updatedAt = Date.now();
     saveOldItcPool(pool, true);
   }
