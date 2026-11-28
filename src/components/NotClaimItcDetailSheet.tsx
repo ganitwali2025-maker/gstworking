@@ -6,6 +6,7 @@ import {
   updateOldItcAudit,
   OldItcItem
 } from '../services/oldItcService';
+import { useLiveReconciliation, round2 } from '../services/recoSyncService';
 import { isWorkingMonthLocked, GST_LOCK_CHANGED_EVENT } from '../services/lockService';
 
 interface NotClaimItcDetailSheetProps {
@@ -48,10 +49,120 @@ export default function NotClaimItcDetailSheet({
     return () => window.removeEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
   }, [workingMonth]);
 
-  // Sync Old ITC pool
+  // Single Source of Truth: Reco engine
+  const recoData = useLiveReconciliation(workingMonth);
+
+  // Derive Not Claim / Not Match items strictly from Reco
+  const baseItems = useMemo<OldItcItem[]>(() => {
+    const list: OldItcItem[] = [];
+
+    // 1. Not Match items from Reco
+    recoData.notMatch.forEach((r) => {
+      const bTaxable = round2(r.taxable || 0);
+      const bIgst = round2(r.igst || 0);
+      const bCgst = round2(r.cgst || 0);
+      const bSgst = round2(r.sgst || 0);
+      const bTotal = round2(r.total || (bTaxable + bIgst + bCgst + bSgst));
+
+      const gTaxable = round2(r.gTaxable ?? 0);
+      const gIgst = round2(r.gIgst ?? 0);
+      const gCgst = round2(r.gCgst ?? 0);
+      const gSgst = round2(r.gSgst ?? 0);
+      const gTotal = round2(r.gTotal ?? (gTaxable + gIgst + gCgst + gSgst));
+
+      list.push({
+        id: r.id,
+        originalMonth: r.month2b || workingMonth,
+        date: r.date || '',
+        invNo: r.invNo || '',
+        gInvNo: r.gInvNo || r.invNo || '',
+        gstin: r.gstin || '',
+        supplierName: r.supplierName || '',
+        bTaxable,
+        bIgst,
+        bCgst,
+        bSgst,
+        bTotal,
+        gTaxable,
+        gIgst,
+        gCgst,
+        gSgst,
+        gTotal,
+        reason: r.reason || 'Not Match: Tax Mismatch',
+        mismatchFields: r.mismatchFields || ['Tax Mismatch'],
+        itcMatchRatio: '4/6',
+        status: 'Not Claim',
+        month2b: r.month2b || workingMonth,
+        claimMonth: '-',
+        pendingMonthsCount: 1,
+        auditStatus: r.auditStatus || 'Pending',
+        auditNote: r.auditNote || '',
+        updatedAt: Date.now()
+      });
+    });
+
+    // 2. Not in GSTR-2B items from Reco
+    recoData.notIn2b.forEach((r) => {
+      const bTaxable = round2(r.taxable || 0);
+      const bIgst = round2(r.igst || 0);
+      const bCgst = round2(r.cgst || 0);
+      const bSgst = round2(r.sgst || 0);
+      const bTotal = round2(r.total || (bTaxable + bIgst + bCgst + bSgst));
+
+      list.push({
+        id: r.id,
+        originalMonth: workingMonth,
+        date: r.date || '',
+        invNo: r.invNo || '',
+        gstin: r.gstin || '',
+        supplierName: r.supplierName || '',
+        bTaxable,
+        bIgst,
+        bCgst,
+        bSgst,
+        bTotal,
+        gTaxable: 0,
+        gIgst: 0,
+        gCgst: 0,
+        gSgst: 0,
+        gTotal: 0,
+        reason: r.reason || 'Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)',
+        mismatchFields: ['GSTR-2B Missing'],
+        itcMatchRatio: '0/6',
+        status: 'Not Claim',
+        month2b: '-',
+        claimMonth: '-',
+        pendingMonthsCount: 1,
+        auditStatus: r.auditStatus || 'Pending',
+        auditNote: r.auditNote || '',
+        updatedAt: Date.now()
+      });
+    });
+
+    return list;
+  }, [recoData, workingMonth]);
+
+  // Sync metrics from base items
   const syncResult = useMemo(() => {
-    return syncOldItcPool(workingMonth);
-  }, [workingMonth, poolVersion]);
+    const notClaimCount = baseItems.length;
+    const notClaimTotalItc = round2(
+      baseItems.reduce((acc, r) => acc + (r.bIgst + r.bCgst + r.bSgst), 0)
+    );
+    const uniqueSuppliers = Array.from(new Set(baseItems.map((r) => r.gstin)));
+    return {
+      notClaimCount,
+      notClaimTotalItc,
+      notClaimItems: baseItems,
+      supplierRiskSummary: uniqueSuppliers.map((gstin) => ({
+        gstin,
+        supplierName: baseItems.find((r) => r.gstin === gstin)?.supplierName || '',
+        count: baseItems.filter((r) => r.gstin === gstin).length,
+        totalItc: baseItems
+          .filter((r) => r.gstin === gstin)
+          .reduce((sum, r) => sum + (r.bIgst + r.bCgst + r.bSgst), 0)
+      }))
+    };
+  }, [baseItems]);
 
   // Listen to old-itc-updated events
   useEffect(() => {
@@ -62,7 +173,6 @@ export default function NotClaimItcDetailSheet({
 
   // Filter Not Claim / Not Match items from all unmatched pool items
   const filteredItems = useMemo(() => {
-    const baseItems = syncResult.unmatchedItems || [];
     return baseItems.filter((item) => {
       // Month filter
       if (monthFilter !== 'ALL' && item.originalMonth !== monthFilter) {
@@ -83,16 +193,16 @@ export default function NotClaimItcDetailSheet({
 
       return true;
     });
-  }, [syncResult.unmatchedItems, monthFilter, searchTerm]);
+  }, [baseItems, monthFilter, searchTerm]);
 
   // Unique months available
   const availableMonths = useMemo(() => {
     const set = new Set<string>();
-    (syncResult.unmatchedItems || []).forEach((i) => {
+    baseItems.forEach((i) => {
       if (i.originalMonth) set.add(i.originalMonth);
     });
     return Array.from(set);
-  }, [syncResult.unmatchedItems]);
+  }, [baseItems]);
 
   // Totals of filtered items (Books & 2B)
   const summaryValues = useMemo(() => {
@@ -216,6 +326,37 @@ export default function NotClaimItcDetailSheet({
 
   return (
     <section className="detail-sheet-page" style={{ padding: '4px 0 24px 0' }}>
+      {/* Top Verification Check Strip */}
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1.5px solid #e2e8f0',
+          borderLeft: `4px solid ${filteredItems.length === (recoData.summary.notMatchCount + recoData.summary.notIn2bCount) ? '#16a34a' : '#dc2626'}`,
+          padding: '8px 16px',
+          marginBottom: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '12.5px',
+          fontWeight: 700,
+          color: '#1e293b'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>
+            Reco: Not Match {recoData.summary.notMatchCount} + Not in 2B {recoData.summary.notIn2bCount} = {recoData.summary.notMatchCount + recoData.summary.notIn2bCount} | Is sheet: {filteredItems.length}
+          </span>
+          {filteredItems.length === (recoData.summary.notMatchCount + recoData.summary.notIn2bCount) ? (
+            <span style={{ color: '#16a34a', fontSize: '13.5px' }}>✔ Counts Synced</span>
+          ) : (
+            <span style={{ color: '#dc2626', fontSize: '13.5px' }}>⚠️ Mismatch</span>
+          )}
+        </div>
+        <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+          Working Month: {workingMonth} (Single Source: Reco Engine)
+        </span>
+      </div>
+
       {/* 1. Unified Single Header & Metrics Template */}
       <div
         style={{

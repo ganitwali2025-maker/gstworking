@@ -16,6 +16,17 @@ export interface ReconciledItem {
   total: number;
   auditStatus?: string;
   auditNote?: string;
+  gDate?: string;
+  gInvNo?: string;
+  gGstin?: string;
+  gTradeName?: string;
+  gTaxable?: number;
+  gIgst?: number;
+  gCgst?: number;
+  gSgst?: number;
+  gTotal?: number;
+  reason?: string;
+  mismatchFields?: string[];
 }
 
 export interface ReconciledInvoiceSummary {
@@ -367,6 +378,16 @@ export function computeLiveReconciliation(workingMonth: string = 'Oct-2026'): Li
     if (paired2b) {
       paired2bIds.add(paired2b.id);
       const total = round2(b.taxable + b.igst + b.cgst + b.sgst);
+      const gTotal = round2(paired2b.taxable + paired2b.igst + paired2b.cgst + paired2b.sgst);
+
+      const mismatches: string[] = [];
+      if (bInvClean !== cleanInv(paired2b.invNo)) mismatches.push('Invoice No');
+      if (Math.abs(round2(b.taxable - paired2b.taxable)) > 1.00) mismatches.push('Taxable');
+      if (Math.abs(round2(b.igst - paired2b.igst)) > 1.00) mismatches.push('IGST');
+      if (Math.abs(round2(b.cgst - paired2b.cgst)) > 1.00) mismatches.push('CGST');
+      if (Math.abs(round2(b.sgst - paired2b.sgst)) > 1.00) mismatches.push('SGST');
+      const reason = mismatches.length > 0 ? `Not Match: ${mismatches.join(', ')}` : 'Not Match: Taxable, Tax Mismatch';
+
       results.push({
         id: b.id,
         status: 'Not Match',
@@ -380,6 +401,17 @@ export function computeLiveReconciliation(workingMonth: string = 'Oct-2026'): Li
         cgst: b.cgst,
         sgst: b.sgst,
         total,
+        gDate: paired2b.date,
+        gInvNo: paired2b.invNo,
+        gGstin: paired2b.gstin,
+        gTradeName: paired2b.supplierName,
+        gTaxable: paired2b.taxable,
+        gIgst: paired2b.igst,
+        gCgst: paired2b.cgst,
+        gSgst: paired2b.sgst,
+        gTotal,
+        reason,
+        mismatchFields: mismatches,
         auditStatus: audit?.status,
         auditNote: audit?.note
       });
@@ -406,6 +438,16 @@ export function computeLiveReconciliation(workingMonth: string = 'Oct-2026'): Li
     if (paired2b) {
       paired2bIds.add(paired2b.id);
       const total = round2(b.taxable + b.igst + b.cgst + b.sgst);
+      const gTotal = round2(paired2b.taxable + paired2b.igst + paired2b.cgst + paired2b.sgst);
+
+      const mismatches: string[] = [];
+      if (cleanInv(b.invNo) !== cleanInv(paired2b.invNo)) mismatches.push('Invoice No');
+      if (Math.abs(round2(b.taxable - paired2b.taxable)) > 1.00) mismatches.push('Taxable');
+      if (Math.abs(round2(b.igst - paired2b.igst)) > 1.00) mismatches.push('IGST');
+      if (Math.abs(round2(b.cgst - paired2b.cgst)) > 1.00) mismatches.push('CGST');
+      if (Math.abs(round2(b.sgst - paired2b.sgst)) > 1.00) mismatches.push('SGST');
+      const reason = mismatches.length > 0 ? `Not Match: ${mismatches.join(', ')}` : 'Not Match: Invoice No Mismatch';
+
       results.push({
         id: b.id,
         status: 'Not Match',
@@ -419,6 +461,17 @@ export function computeLiveReconciliation(workingMonth: string = 'Oct-2026'): Li
         cgst: b.cgst,
         sgst: b.sgst,
         total,
+        gDate: paired2b.date,
+        gInvNo: paired2b.invNo,
+        gGstin: paired2b.gstin,
+        gTradeName: paired2b.supplierName,
+        gTaxable: paired2b.taxable,
+        gIgst: paired2b.igst,
+        gCgst: paired2b.cgst,
+        gSgst: paired2b.sgst,
+        gTotal,
+        reason,
+        mismatchFields: mismatches,
         auditStatus: audit?.status,
         auditNote: audit?.note
       });
@@ -444,6 +497,8 @@ export function computeLiveReconciliation(workingMonth: string = 'Oct-2026'): Li
       cgst: b.cgst,
       sgst: b.sgst,
       total,
+      reason: 'Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)',
+      mismatchFields: ['GSTR-2B Missing'],
       auditStatus: audit?.status,
       auditNote: audit?.note
     });

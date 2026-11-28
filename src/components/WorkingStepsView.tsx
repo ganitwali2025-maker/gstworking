@@ -58,6 +58,13 @@ export default function WorkingStepsView({
     }
   }, [workingMonth, oldItcVersion]);
 
+  // Single source total for Not Claim / Not Match ITC at risk
+  const notClaimRiskTotal = useMemo(() => {
+    const sumNotMatch = recoData.notMatch.reduce((sum, r) => sum + (r.igst + r.cgst + r.sgst), 0);
+    const sumNotIn2b = recoData.notIn2b.reduce((sum, r) => sum + (r.igst + r.cgst + r.sgst), 0);
+    return round2(sumNotMatch + sumNotIn2b);
+  }, [recoData]);
+
   // Listen to old-itc-updated events
   useEffect(() => {
     const handleUpdate = () => setOldItcVersion((v) => v + 1);
@@ -413,7 +420,7 @@ export default function WorkingStepsView({
                 className="step-card-badge"
                 style={{ color: '#7F1D1D', fontWeight: 700, fontSize: '13px' }}
               >
-                {oldItcData.notClaimCount} Invoices
+                {recoData.summary.notMatchCount + recoData.summary.notIn2bCount} Invoices
               </span>
             </div>
             <div className="step-card-body">
@@ -425,7 +432,7 @@ export default function WorkingStepsView({
                 नॉट मैच एवं 2B में अनुपलब्ध इनवॉइस, दोबारा जाँच के बाद भी मिलान नहीं। सप्लायर से संपर्क करें।
               </p>
               <div style={{ marginTop: '8px', fontSize: '12.5px', fontWeight: 700, color: '#7F1D1D' }}>
-                ITC at risk: ₹{formatInr(oldItcData.notClaimTotalItc)}
+                ITC at risk: ₹{formatInr(notClaimRiskTotal)}
               </div>
             </div>
             <div className="step-card-footer">

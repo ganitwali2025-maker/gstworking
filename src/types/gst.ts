@@ -12,7 +12,8 @@ export type ViewType =
   | 'reco-missing-books'
   | 'reco-missing-2b'
   | 'old-itc'
-  | 'not-claim-itc';
+  | 'not-claim-itc'
+  | 'reco-not-match';
 
 export interface InvoiceRecord {
   id: string;

@@ -6,7 +6,7 @@ import { isWorkingMonthLocked, GST_LOCK_CHANGED_EVENT } from '../services/lockSe
 import { getOldItcPool } from '../services/oldItcService';
 import defaultRegisters from '../data/defaultRegisters.json';
 
-export type WorkingDetailCategory = 'matched' | 'not-in-book' | 'not-in-2b';
+export type WorkingDetailCategory = 'matched' | 'not-in-book' | 'not-in-2b' | 'not-match';
 
 interface WorkingStepsDetailSheetProps {
   category: WorkingDetailCategory;
@@ -54,6 +54,19 @@ export interface DetailSheetRow {
   cgst: number;
   sgst: number;
   total: number;
+  gDate?: string;
+  gInvNo?: string;
+  gGstin?: string;
+  gTradeName?: string;
+  gTaxable?: number;
+  gIgst?: number;
+  gCgst?: number;
+  gSgst?: number;
+  gTotal?: number;
+  reason?: string;
+  mismatchFields?: string[];
+  auditStatus?: string;
+  auditNote?: string;
 }
 
 function cleanStr(val: any): string {
@@ -285,19 +298,21 @@ export default function WorkingStepsDetailSheet({
 
       totalContext = recoData.summary.notInBookCount + recoData.summary.matchedCount;
       count = recoData.summary.notInBookCount;
-    } else {
-      // Exclude invoices that matched in Old ITC so they do not show here
-      const oldPool = getOldItcPool();
-      const matchedKeys = new Set(
-        oldPool
-          .filter((x) => x.status === 'Matched - Claim')
-          .map((x) => `${cleanStr(x.gstin)}_${cleanInv(x.invNo)}`)
-      );
-      selectedRows = recoData.notIn2b.filter(
-        (r) => !matchedKeys.has(`${cleanStr(r.gstin)}_${cleanInv(r.invNo)}`) && !matchedKeys.has(r.id)
-      );
+    } else if (category === 'not-match') {
+      selectedRows = recoData.notMatch.map((r) => ({
+        ...r,
+        status: 'Not Match'
+      }));
       totalContext = recoData.summary.totalCount;
-      count = selectedRows.length;
+      count = recoData.summary.notMatchCount;
+    } else {
+      // category === 'not-in-2b': Single Source of Truth from Reco
+      selectedRows = recoData.notIn2b.map((r) => ({
+        ...r,
+        status: 'Not in GSTR-2B'
+      }));
+      totalContext = recoData.summary.totalCount;
+      count = recoData.summary.notIn2bCount;
     }
 
     const pct = totalContext > 0 ? ((count / totalContext) * 100).toFixed(1) : '0.0';
@@ -415,6 +430,20 @@ export default function WorkingStepsDetailSheet({
         statusPillBorder: '#93c5fd'
       };
     }
+    if (category === 'not-match') {
+      return {
+        title: 'Not Match ITC',
+        subTitle: 'Found in both Books and GSTR-2B, but with mismatch in tax, taxable, or invoice details.',
+        badgeColor: '#dc2626',
+        borderColor: '#dc2626',
+        metric1Label: 'Total Books Invoices',
+        metric2Label: 'Not Match Invoices',
+        metric3Label: '% of Books Invoices',
+        statusPillBg: '#fee2e2',
+        statusPillColor: '#dc2626',
+        statusPillBorder: '#fca5a5'
+      };
+    }
     return {
       title: 'Not in GSTR-2B',
       subTitle: 'Recorded in your books but not reflected in GSTR-2B. Hold ITC.',
@@ -504,6 +533,39 @@ export default function WorkingStepsDetailSheet({
 
   return (
     <section className="detail-sheet-page" style={{ padding: '4px 0 24px 0' }}>
+      {/* Top Verification Check Strip */}
+      {(category === 'not-in-2b' || category === 'not-match') && (
+        <div
+          style={{
+            background: '#ffffff',
+            border: '1.5px solid #e2e8f0',
+            borderLeft: `4px solid ${categoryRows.length === (category === 'not-match' ? recoData.summary.notMatchCount : recoData.summary.notIn2bCount) ? '#16a34a' : '#dc2626'}`,
+            padding: '8px 16px',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '12.5px',
+            fontWeight: 700,
+            color: '#1e293b'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>
+              Reco: Not Match {recoData.summary.notMatchCount} + Not in 2B {recoData.summary.notIn2bCount} = {recoData.summary.notMatchCount + recoData.summary.notIn2bCount} | Is sheet: {categoryRows.length}
+            </span>
+            {categoryRows.length === (category === 'not-match' ? recoData.summary.notMatchCount : recoData.summary.notIn2bCount) ? (
+              <span style={{ color: '#16a34a', fontSize: '13.5px' }}>✔</span>
+            ) : (
+              <span style={{ color: '#dc2626', fontSize: '13.5px' }}>⚠️</span>
+            )}
+          </div>
+          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>
+            Working Month: {workingMonth}
+          </span>
+        </div>
+      )}
+
       {/* 2. Total Card Box (with left colored border & 4 metrics) */}
       <div
         style={{
@@ -715,9 +777,9 @@ export default function WorkingStepsDetailSheet({
 
         {/* 5. Main Category Table */}
         <div className="detail-sheet-table-wrapper" style={{ overflowX: 'auto', border: '1px solid #e2e8f0', background: '#ffffff', width: '100%' }}>
-          {category === 'not-in-2b' ? (
+          {category === 'not-in-2b' || category === 'not-match' ? (
             /* ======================================================== */
-            /* 20 COLUMNS TABLE FOR NOT IN GSTR-2B SHEET                 */
+            /* 20 COLUMNS TABLE FOR NOT IN GSTR-2B & NOT MATCH SHEETS     */
             /* ======================================================== */
             <table className="detail-sheet-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', color: '#1E1747' }}>
               <thead>
@@ -808,7 +870,7 @@ export default function WorkingStepsDetailSheet({
                     fontFamily: "'Bricolage Grotesque', sans-serif"
                   }}
                 >
-                  <th style={{ width: '45px', minWidth: '45px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>S.No</th>
+                  <th style={{ width: '45px', minWidth: '45px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>#</th>
                   <th style={{ width: '95px', minWidth: '95px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>Book Month</th>
                   <th style={{ width: '85px', minWidth: '85px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>2B Month</th>
                   <th style={{ width: '95px', minWidth: '95px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>Claim Month</th>
@@ -858,8 +920,8 @@ export default function WorkingStepsDetailSheet({
                       <td style={{ width: '95px', minWidth: '95px', textAlign: 'center', fontWeight: 700, color: '#334155' }}>
                         {workingMonth}
                       </td>
-                      <td style={{ width: '85px', minWidth: '85px', textAlign: 'center', color: '#94a3b8' }}>
-                        -
+                      <td style={{ width: '85px', minWidth: '85px', textAlign: 'center', color: category === 'not-match' ? '#1E1747' : '#94a3b8', fontWeight: category === 'not-match' ? 600 : 400 }}>
+                        {category === 'not-match' ? (row.month2b || workingMonth) : '-'}
                       </td>
                       <td style={{ width: '95px', minWidth: '95px', textAlign: 'center', color: '#94a3b8' }}>
                         -
@@ -874,7 +936,7 @@ export default function WorkingStepsDetailSheet({
                         {row.supplierName}
                       </td>
                       <td style={{ width: '220px', minWidth: '220px', textAlign: 'left', fontSize: '12px', color: '#b91c1c', fontWeight: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.4 }}>
-                        Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)
+                        {row.reason || (category === 'not-in-2b' ? 'Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)' : 'Not Match: Tax Mismatch')}
                       </td>
                       <td style={{ width: '110px', minWidth: '110px', textAlign: 'center' }}>
                         <span
@@ -883,14 +945,14 @@ export default function WorkingStepsDetailSheet({
                             padding: '3px 8px',
                             fontSize: '11px',
                             fontWeight: 700,
-                            background: '#fef3c7',
-                            color: '#b45309',
-                            border: '1.5px solid #fde68a',
+                            background: category === 'not-match' ? '#fee2e2' : '#fef3c7',
+                            color: category === 'not-match' ? '#dc2626' : '#b45309',
+                            border: `1.5px solid ${category === 'not-match' ? '#fca5a5' : '#fde68a'}`,
                             borderRadius: 0,
                             whiteSpace: 'nowrap'
                           }}
                         >
-                          Not in GSTR-2B
+                          {category === 'not-match' ? 'Not Match' : 'Not in GSTR-2B'}
                         </span>
                       </td>
 
@@ -911,12 +973,39 @@ export default function WorkingStepsDetailSheet({
                         {renderAmountCell(row.total, true)}
                       </td>
 
-                      {/* Govt 2B Amounts (All -) */}
-                      <td style={{ width: '110px', minWidth: '110px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
-                      <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
-                      <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
-                      <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
-                      <td style={{ width: '115px', minWidth: '115px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
+                      {/* Govt 2B Amounts */}
+                      {category === 'not-match' ? (
+                        <>
+                          <td style={{ width: '110px', minWidth: '110px', textAlign: 'right', background: Math.abs(row.taxable - (row.gTaxable ?? row.taxable)) > 1 ? '#fee2e2' : '#ECFEFF', fontWeight: 600, color: Math.abs(row.taxable - (row.gTaxable ?? row.taxable)) > 1 ? '#dc2626' : '#1E1747' }}>
+                            {renderAmountCell(row.gTaxable ?? 0)}
+                            {Math.abs(row.taxable - (row.gTaxable ?? row.taxable)) > 1 && ((row.gTaxable ?? 0) > row.taxable ? ' ▲' : ' ▼')}
+                          </td>
+                          <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: Math.abs(row.igst - (row.gIgst ?? row.igst)) > 1 ? '#fee2e2' : '#ECFEFF', fontWeight: 600, color: Math.abs(row.igst - (row.gIgst ?? row.igst)) > 1 ? '#dc2626' : '#1E1747' }}>
+                            {renderAmountCell(row.gIgst ?? 0)}
+                            {Math.abs(row.igst - (row.gIgst ?? row.igst)) > 1 && ((row.gIgst ?? 0) > row.igst ? ' ▲' : ' ▼')}
+                          </td>
+                          <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: Math.abs(row.cgst - (row.gCgst ?? row.cgst)) > 1 ? '#fee2e2' : '#ECFEFF', fontWeight: 600, color: Math.abs(row.cgst - (row.gCgst ?? row.cgst)) > 1 ? '#dc2626' : '#1E1747' }}>
+                            {renderAmountCell(row.gCgst ?? 0)}
+                            {Math.abs(row.cgst - (row.gCgst ?? row.cgst)) > 1 && ((row.gCgst ?? 0) > row.cgst ? ' ▲' : ' ▼')}
+                          </td>
+                          <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: Math.abs(row.sgst - (row.gSgst ?? row.sgst)) > 1 ? '#fee2e2' : '#ECFEFF', fontWeight: 600, color: Math.abs(row.sgst - (row.gSgst ?? row.sgst)) > 1 ? '#dc2626' : '#1E1747' }}>
+                            {renderAmountCell(row.gSgst ?? 0)}
+                            {Math.abs(row.sgst - (row.gSgst ?? row.sgst)) > 1 && ((row.gSgst ?? 0) > row.sgst ? ' ▲' : ' ▼')}
+                          </td>
+                          <td style={{ width: '115px', minWidth: '115px', textAlign: 'right', background: Math.abs(row.total - (row.gTotal ?? row.total)) > 1 ? '#fee2e2' : '#ECFEFF', fontWeight: 700, color: Math.abs(row.total - (row.gTotal ?? row.total)) > 1 ? '#dc2626' : '#7F1D1D' }}>
+                            {renderAmountCell(row.gTotal ?? 0, true)}
+                            {Math.abs(row.total - (row.gTotal ?? row.total)) > 1 && ((row.gTotal ?? 0) > row.total ? ' ▲' : ' ▼')}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ width: '110px', minWidth: '110px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
+                          <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
+                          <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
+                          <td style={{ width: '95px', minWidth: '95px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
+                          <td style={{ width: '115px', minWidth: '115px', textAlign: 'right', background: '#ECFEFF', color: '#94a3b8' }}>-</td>
+                        </>
+                      )}
 
                       {/* Actions: View and Audit */}
                       <td style={{ width: '130px', minWidth: '130px', padding: '6px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
@@ -1125,14 +1214,14 @@ export default function WorkingStepsDetailSheet({
               <div><strong>Supplier GSTIN:</strong> <code style={{ color: '#4c1d95' }}>{viewItem.gstin}</code></div>
               <div><strong>Invoice Date:</strong> {viewItem.date}</div>
               <div><strong>Book Month:</strong> {workingMonth}</div>
-              <div><strong>Status:</strong> <span style={{ color: '#b45309', fontWeight: 700 }}>Not in GSTR-2B</span></div>
+              <div><strong>Status:</strong> <span style={{ color: viewItem.status === 'Not Match' ? '#dc2626' : '#b45309', fontWeight: 700 }}>{viewItem.status}</span></div>
               <div><strong>ITC Value:</strong> <span style={{ fontWeight: 800, color: '#c2410c' }}>{formatInr(viewItem.igst + viewItem.cgst + viewItem.sgst)}</span></div>
             </div>
 
-            <div style={{ marginTop: '14px', background: '#fff7ed', padding: '10px 12px', border: '1px solid #fed7aa', fontSize: '12.5px' }}>
+            <div style={{ marginTop: '14px', background: viewItem.status === 'Not Match' ? '#fef2f2' : '#fff7ed', padding: '10px 12px', border: `1px solid ${viewItem.status === 'Not Match' ? '#fecaca' : '#fed7aa'}`, fontSize: '12.5px' }}>
               <strong>Status Reason:</strong>
-              <div style={{ color: '#c2410c', marginTop: '4px', fontWeight: 700 }}>
-                Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)
+              <div style={{ color: viewItem.status === 'Not Match' ? '#dc2626' : '#c2410c', marginTop: '4px', fontWeight: 700 }}>
+                {viewItem.reason || (viewItem.status === 'Not Match' ? 'Not Match: Tax Mismatch' : 'Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)')}
               </div>
             </div>
 
@@ -1154,14 +1243,28 @@ export default function WorkingStepsDetailSheet({
               </div>
             </div>
 
-            {/* Govt GSTR-2B Details: Not Available */}
+            {/* Govt GSTR-2B Details */}
             <div style={{ marginTop: '14px', border: '1px solid #e2e8f0' }}>
               <div style={{ background: '#155E75', color: '#ffffff', padding: '8px 12px', fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em' }}>
-                GOVT GSTR-2B STATUS
+                GOVT GSTR-2B DETAILS
               </div>
-              <div style={{ padding: '14px', fontSize: '13px', background: '#ECFEFF', color: '#0E7490', fontWeight: 600 }}>
-                ⚠️ Not found in Govt GSTR-2B. Ineligible for ITC claim until reflected in Govt portal.
-              </div>
+              {viewItem.status === 'Not Match' ? (
+                <div style={{ padding: '14px', fontSize: '13px', background: '#ECFEFF' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                    <div>Taxable: <strong>{formatInr(viewItem.gTaxable ?? 0)}</strong></div>
+                    <div>IGST: <strong>{formatInr(viewItem.gIgst ?? 0)}</strong></div>
+                    <div>CGST: <strong>{formatInr(viewItem.gCgst ?? 0)}</strong></div>
+                    <div>SGST: <strong>{formatInr(viewItem.gSgst ?? 0)}</strong></div>
+                  </div>
+                  <div style={{ marginTop: '10px', borderTop: '1px solid #cbd5e1', paddingTop: '8px', color: '#0E7490', fontWeight: 800, fontSize: '14px' }}>
+                    Total 2B Value: {formatInr(viewItem.gTotal ?? 0)}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '14px', fontSize: '13px', background: '#ECFEFF', color: '#0E7490', fontWeight: 600 }}>
+                  ⚠️ Not found in Govt GSTR-2B. Ineligible for ITC claim until reflected in Govt portal.
+                </div>
+              )}
             </div>
 
             <div style={{ marginTop: '20px', textAlign: 'right' }}>

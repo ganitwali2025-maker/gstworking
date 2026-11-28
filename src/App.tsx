@@ -171,6 +171,14 @@ export default function App() {
               workingMonth={workingMonth}
             />
           )}
+          {view === 'reco-not-match' && (
+            <WorkingStepsDetailSheet
+              category="not-match"
+              onBack={() => setView('steps')}
+              showToast={showToast}
+              workingMonth={workingMonth}
+            />
+          )}
 
           {view === 'old-itc' && (
             <OldItcDetailSheet
@@ -188,7 +196,7 @@ export default function App() {
             />
           )}
 
-          {!['g1', 'itc-reg', 'rcm', 'g2b', 'rec', 'reco-matched', 'reco-missing-books', 'reco-missing-2b', 'old-itc', 'not-claim-itc'].includes(view) && (
+          {!['g1', 'itc-reg', 'rcm', 'g2b', 'rec', 'reco-matched', 'reco-missing-books', 'reco-missing-2b', 'reco-not-match', 'old-itc', 'not-claim-itc'].includes(view) && (
             <p
               className="note"
               style={{

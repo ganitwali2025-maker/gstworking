@@ -13,6 +13,7 @@ export const ROUTE_PATH_MAP: Record<ViewType, string> = {
   'reco-matched': '/reco-matched',
   'reco-missing-books': '/missing-in-books',
   'reco-missing-2b': '/missing-in-2b',
+  'reco-not-match': '/not-match',
   'old-itc': '/old-itc',
   'not-claim-itc': '/not-claim-itc'
 };
@@ -30,6 +31,8 @@ export const PATH_VIEW_MAP: Record<string, ViewType> = {
   '/reco-matched': 'reco-matched',
   '/missing-in-books': 'reco-missing-books',
   '/missing-in-2b': 'reco-missing-2b',
+  '/not-match': 'reco-not-match',
+  '/reco-not-match': 'reco-not-match',
   '/old-itc': 'old-itc',
   '/not-claim-itc': 'not-claim-itc',
   // Direct aliases for convenience
