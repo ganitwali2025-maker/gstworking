@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { StepItem, ViewType } from '../types/gst';
 import RegisterPeriodBar from './RegisterPeriodBar';
-import { useLiveReconciliation } from '../services/recoSyncService';
+import { useLiveReconciliation, round2 } from '../services/recoSyncService';
 import { syncOldItcPool } from '../services/oldItcService';
 import { parseWorkingMonth } from '../services/lockService';
 

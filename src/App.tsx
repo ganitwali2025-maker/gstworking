@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { useGstStore } from './hooks/useGstStore';
 import { initAutoSyncRetryListener } from './services/registerService';
 import { parseWorkingMonth } from './services/lockService';
@@ -17,6 +17,61 @@ import Gstr2bRegisterView from './components/Gstr2bRegisterView';
 import WorkingStepsDetailSheet from './components/WorkingStepsDetailSheet';
 import OldItcDetailSheet from './components/OldItcDetailSheet';
 import NotClaimItcDetailSheet from './components/NotClaimItcDetailSheet';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('App ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '40px 20px', textAlign: 'center', background: '#ffffff', border: '1.5px solid #e2e8f0', margin: '20px' }}>
+          <h3 style={{ color: '#dc2626', fontSize: '18px', fontWeight: 800 }}>⚠️ Data Load me dikkat aayi</h3>
+          <p style={{ color: '#64748b', fontSize: '14px', marginTop: '8px' }}>
+            Kripya page ko refresh karein ya doosra section chunein.
+          </p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false });
+              window.location.reload();
+            }}
+            style={{
+              marginTop: '16px',
+              padding: '8px 20px',
+              background: '#2B0A4F',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            Page Refresh Karein
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const {
@@ -84,7 +139,8 @@ export default function App() {
         />
 
         <div className={`scroll ${view === 'rec' ? 'scroll-rec' : ''} ${view === 'steps' ? 'scroll-steps' : ''}`}>
-          {view !== 'steps' && <RegisterPeriodBar view={view} />}
+          <ErrorBoundary>
+            {view !== 'steps' && <RegisterPeriodBar view={view} />}
 
           {view === 'itc' && (
             <ItcDashboardView
@@ -215,6 +271,7 @@ export default function App() {
               <span>GST Intelligence Suite&trade; | Designed &amp; Developed by <strong style={{ color: '#350B5E' }}>Lokesh Rajak</strong>, Accountant</span>
             </p>
           )}
+          </ErrorBoundary>
         </div>
       </main>
 
