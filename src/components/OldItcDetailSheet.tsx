@@ -29,8 +29,7 @@ export default function OldItcDetailSheet({
   workingMonth = 'Oct-2026'
 }: OldItcDetailSheetProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [monthFilter, setMonthFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'Pending' | 'Matched - Claim'>('ALL');
+  const [claimMonthFilter, setClaimMonthFilter] = useState<string>(workingMonth);
   const [poolVersion, setPoolVersion] = useState(0);
 
   // Selected invoice for View modal
@@ -62,17 +61,23 @@ export default function OldItcDetailSheet({
     return () => window.removeEventListener('old-itc-updated', handleUpdate);
   }, []);
 
-  // Filter pool items
-  const filteredItems = useMemo(() => {
-    return syncResult.oldItcItems.filter((item) => {
-      // Status filter
-      if (statusFilter !== 'ALL' && item.status !== statusFilter) {
-        return false;
-      }
+  // Available Claim Months
+  const availableClaimMonths = useMemo(() => {
+    const set = new Set<string>();
+    syncResult.matchedClaimItems.forEach((i) => {
+      if (i.claimMonth) set.add(i.claimMonth);
+    });
+    if (!set.has(workingMonth)) set.add(workingMonth);
+    return Array.from(set);
+  }, [syncResult.matchedClaimItems, workingMonth]);
 
-      // Month filter
-      if (monthFilter !== 'ALL' && item.originalMonth !== monthFilter) {
-        return false;
+  // Filter pool items: ONLY matched verified invoices appear in Old ITC sheet
+  const filteredItems = useMemo(() => {
+    return syncResult.matchedClaimItems.filter((item) => {
+      // Claim Month filter
+      if (claimMonthFilter !== 'ALL') {
+        const cMonth = item.claimMonth || item.month2b;
+        if (cMonth !== claimMonthFilter) return false;
       }
 
       // Search term
@@ -82,29 +87,19 @@ export default function OldItcDetailSheet({
         const matchGst = item.gstin.toLowerCase().includes(q);
         const matchInv = item.invNo.toLowerCase().includes(q);
         const matchReason = (item.reason || '').toLowerCase().includes(q);
-        const matchStatus = (item.status || '').toLowerCase().includes(q);
         const matchBookMonth = (item.originalMonth || '').toLowerCase().includes(q);
         const match2bMonth = (item.month2b || '').toLowerCase().includes(q);
         const matchClaimMonth = (item.claimMonth || '').toLowerCase().includes(q);
-        if (!matchName && !matchGst && !matchInv && !matchReason && !matchStatus && !matchBookMonth && !match2bMonth && !matchClaimMonth) {
+        if (!matchName && !matchGst && !matchInv && !matchReason && !matchBookMonth && !match2bMonth && !matchClaimMonth) {
           return false;
         }
       }
 
       return true;
     });
-  }, [syncResult.oldItcItems, statusFilter, monthFilter, searchTerm]);
+  }, [syncResult.matchedClaimItems, claimMonthFilter, searchTerm]);
 
-  // Unique months available
-  const availableMonths = useMemo(() => {
-    const set = new Set<string>();
-    syncResult.oldItcItems.forEach((i) => {
-      if (i.originalMonth) set.add(i.originalMonth);
-    });
-    return Array.from(set);
-  }, [syncResult.oldItcItems]);
-
-  // Totals of filtered items
+  // Totals of filtered items (Books amounts)
   const summaryValues = useMemo(() => {
     let taxable = 0;
     let igst = 0;
@@ -126,33 +121,13 @@ export default function OldItcDetailSheet({
     return { taxable, igst, cgst, sgst, totalTax, grandTotal };
   }, [filteredItems]);
 
-  // Percentage calculations for Pending vs Matched & Claimed (always summing to 100%)
-  const { pendingPctStr, matchedPctStr } = useMemo(() => {
-    const total = syncResult.oldItcItems.length;
-    const pCount = syncResult.pendingCount;
-    const mCount = syncResult.matchedClaimItems.length;
-
-    if (total <= 0) {
-      return { pendingPctStr: '0%', matchedPctStr: '0%' };
-    }
-    if (pCount <= 0 && mCount <= 0) {
-      return { pendingPctStr: '0%', matchedPctStr: '0%' };
-    }
-    if (pCount === total) {
-      return { pendingPctStr: '100%', matchedPctStr: '0%' };
-    }
-    if (mCount === total) {
-      return { pendingPctStr: '0%', matchedPctStr: '100%' };
-    }
-
-    const rawPending = Math.round(((pCount / total) * 100) * 10) / 10;
-    const rawMatched = Math.round((100 - rawPending) * 10) / 10;
-
-    const pStr = Number.isInteger(rawPending) ? `${rawPending}%` : `${rawPending.toFixed(1)}%`;
-    const mStr = Number.isInteger(rawMatched) ? `${rawMatched}%` : `${rawMatched.toFixed(1)}%`;
-
-    return { pendingPctStr: pStr, matchedPctStr: mStr };
-  }, [syncResult.oldItcItems.length, syncResult.pendingCount, syncResult.matchedClaimItems.length]);
+  // Banner statistics
+  const matchedAndVerifiedCount = syncResult.matchedCount;
+  const stillNotClaimedCount = syncResult.notClaimCount;
+  const bannerTotalInvoices = matchedAndVerifiedCount + stillNotClaimedCount;
+  const matchedPct = bannerTotalInvoices > 0 ? Math.round((matchedAndVerifiedCount / bannerTotalInvoices) * 100) : 0;
+  const stillNotClaimedPct = bannerTotalInvoices > 0 ? Math.round((stillNotClaimedCount / bannerTotalInvoices) * 100) : 0;
+  const totalItcClaimed = syncResult.matchedTotalItc;
 
   // Move to Not Claim handler
   const handleMoveToNotClaim = (item: OldItcItem) => {
@@ -194,22 +169,17 @@ export default function OldItcDetailSheet({
         'S.No': i + 1,
         'Book Month': r.originalMonth,
         '2B Month': r.month2b || '-',
-        'Claim Month': r.status === 'Matched - Claim' ? (r.claimMonth || '-') : '-',
+        'Claim Month': r.claimMonth || workingMonth,
         'Invoice No.': r.invNo,
         'Supplier GSTIN': r.gstin,
         'Supplier Name': r.supplierName,
         'Reason': r.reason,
-        'Status': r.status,
+        'Status': 'Verified',
         'Books Taxable (₹)': r.bTaxable,
         'Books IGST (₹)': r.bIgst,
         'Books CGST (₹)': r.bCgst,
         'Books SGST (₹)': r.bSgst,
-        'Books Total (₹)': r.bTotal,
-        '2B Taxable (₹)': r.gTaxable,
-        '2B IGST (₹)': r.gIgst,
-        '2B CGST (₹)': r.gCgst,
-        '2B SGST (₹)': r.gSgst,
-        '2B Total (₹)': r.gTotal
+        'Books Total (₹)': r.bTotal
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -225,129 +195,88 @@ export default function OldItcDetailSheet({
 
   return (
     <section className="detail-sheet-page" style={{ padding: '4px 0 24px 0' }}>
-      {/* 1. Unified Single Header & Metrics Template */}
+      {/* 1. Single 44px Banner with 4px Violet Left Border */}
       <div
         style={{
           background: '#ffffff',
-          border: '1.5px solid #e2e8f0',
-          padding: '12px 20px',
+          border: '1px solid #e2e8f0',
+          borderLeft: '4px solid #6D28D9',
+          minHeight: '44px',
+          padding: '8px 16px',
           marginBottom: '14px',
           borderRadius: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: '20px',
+          gap: '16px',
           flexWrap: 'wrap'
         }}
       >
-        {/* Left: Title & Working Month info */}
-        <div style={{ minWidth: '220px', borderRight: '1.5px solid #e2e8f0', paddingRight: '20px' }}>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#241a3d', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+        {/* Left: Title & Subtitle */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: 800, color: '#241a3d', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
             Old ITC – Carried Forward
           </h2>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
             {filteredItems.length} invoices | Working Month: {workingMonth}
-          </div>
+          </span>
         </div>
 
-        {/* Right: 4 Metrics in single row */}
+        {/* Right: 4 Statistics separated by thin vertical lines in a single row */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            flex: 1,
-            gap: '16px',
-            minWidth: '520px'
+            gap: '14px',
+            flexWrap: 'nowrap'
           }}
         >
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              TOTAL INVOICES
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#241a3d', marginTop: '3px' }}>
-              {syncResult.oldItcItems.length}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              TOTAL INVOICES:
+            </span>
+            <strong style={{ fontSize: '14px', fontWeight: 800, color: '#241a3d' }}>
+              {bannerTotalInvoices}
+            </strong>
           </div>
 
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Pending Invoices
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#6D28D9', marginTop: '3px', display: 'flex', alignItems: 'baseline', gap: '5px' }}>
-              <span>{syncResult.pendingCount}</span>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#6D28D9' }}>({pendingPctStr})</span>
-            </div>
+          <div style={{ width: '1px', height: '16px', background: '#cbd5e1' }} />
+
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              MATCHED &amp; VERIFIED:
+            </span>
+            <strong style={{ fontSize: '14px', fontWeight: 800, color: '#15803d' }}>
+              {matchedAndVerifiedCount} ({matchedPct}%)
+            </strong>
           </div>
 
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Matched &amp; Claimed
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: '#15803d', marginTop: '3px', display: 'flex', alignItems: 'baseline', gap: '5px' }}>
-              <span>{syncResult.matchedClaimItems.length}</span>
-              <span style={{ fontSize: '12px', fontWeight: 700, color: '#15803d' }}>({matchedPctStr})</span>
-            </div>
+          <div style={{ width: '1px', height: '16px', background: '#cbd5e1' }} />
+
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              STILL NOT CLAIMED:
+            </span>
+            <strong style={{ fontSize: '14px', fontWeight: 800, color: '#7F1D1D' }}>
+              {stillNotClaimedCount} ({stillNotClaimedPct}%)
+            </strong>
           </div>
 
-          <div>
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Total Pending ITC
-            </div>
-            <div style={{ fontSize: '19px', fontWeight: 800, color: '#6D28D9', marginTop: '4px' }}>
-              ₹{formatInr(syncResult.pendingTotalItc)}
-            </div>
-          </div>
-        </div>
-      </div>
+          <div style={{ width: '1px', height: '16px', background: '#cbd5e1' }} />
 
-      {/* 3. 5 Summary Metric Boxes */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-          gap: '10px',
-          marginBottom: '16px'
-        }}
-      >
-        <div style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', padding: '10px 14px', borderRadius: 0 }}>
-          <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b' }}>Taxable Value</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: '#241a3d', marginTop: '4px' }}>
-            ₹{formatInr(summaryValues.taxable)}
-          </div>
-        </div>
-
-        <div style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', padding: '10px 14px', borderRadius: 0 }}>
-          <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b' }}>IGST</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: '#241a3d', marginTop: '4px' }}>
-            ₹{formatInr(summaryValues.igst)}
-          </div>
-        </div>
-
-        <div style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', padding: '10px 14px', borderRadius: 0 }}>
-          <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b' }}>CGST</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: '#241a3d', marginTop: '4px' }}>
-            ₹{formatInr(summaryValues.cgst)}
-          </div>
-        </div>
-
-        <div style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', padding: '10px 14px', borderRadius: 0 }}>
-          <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b' }}>SGST</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: '#241a3d', marginTop: '4px' }}>
-            ₹{formatInr(summaryValues.sgst)}
-          </div>
-        </div>
-
-        <div style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', padding: '10px 14px', borderRadius: 0 }}>
-          <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#64748b' }}>Total Tax Amount</div>
-          <div style={{ fontSize: '16px', fontWeight: 800, color: '#6D28D9', marginTop: '4px' }}>
-            ₹{formatInr(summaryValues.totalTax)}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              TOTAL ITC CLAIMED:
+            </span>
+            <strong style={{ fontSize: '14px', fontWeight: 800, color: '#6D28D9' }}>
+              ₹{formatInr(totalItcClaimed)}
+            </strong>
           </div>
         </div>
       </div>
 
-      {/* 4. Main Old ITC Table Card Container with Controls & Table */}
-      <div className="card gstr1-card" style={{ width: '100%', background: '#ffffff', border: '1px solid var(--line)', padding: '20px', borderRadius: 0, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)', boxSizing: 'border-box' }}>
+      {/* 2. Main Old ITC Table Card Container with Controls & Table */}
+      <div className="card gstr1-card" style={{ width: '100%', background: '#ffffff', border: '1px solid var(--line)', padding: '16px 20px', borderRadius: 0, boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)', boxSizing: 'border-box' }}>
         {/* Controls: Search, Filters & Excel Export */}
         <div
           style={{
@@ -355,7 +284,7 @@ export default function OldItcDetailSheet({
             justifyContent: 'space-between',
             alignItems: 'center',
             gap: '12px',
-            marginBottom: '16px',
+            marginBottom: '14px',
             flexWrap: 'wrap'
           }}
         >
@@ -389,10 +318,10 @@ export default function OldItcDetailSheet({
               </button>
             )}
 
-            {/* Month Filter */}
+            {/* Claim Month Filter */}
             <select
-              value={monthFilter}
-              onChange={(e) => setMonthFilter(e.target.value)}
+              value={claimMonthFilter}
+              onChange={(e) => setClaimMonthFilter(e.target.value)}
               style={{
                 border: '1px solid #cbd5e1',
                 padding: '6px 10px',
@@ -403,35 +332,16 @@ export default function OldItcDetailSheet({
                 background: '#f8fafc'
               }}
             >
-              <option value="ALL">All Months</option>
-              {availableMonths.map((m) => (
+              <option value="ALL">All Claim Months</option>
+              {availableClaimMonths.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              style={{
-                border: '1px solid #cbd5e1',
-                padding: '6px 10px',
-                fontSize: '12px',
-                fontWeight: 600,
-                color: '#334155',
-                borderRadius: 0,
-                background: '#f8fafc'
-              }}
-            >
-              <option value="ALL">All Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Matched - Claim">Matched - Claim</option>
             </select>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-              Showing {filteredItems.length} of {syncResult.oldItcItems.length} records
+              Showing {filteredItems.length} of {syncResult.matchedClaimItems.length} invoices
             </span>
             <button
               type="button"
@@ -460,619 +370,317 @@ export default function OldItcDetailSheet({
           </div>
         </div>
 
-        {/* 5. Main Old ITC Table */}
+        {/* 3. Main Old ITC Table (15 Columns, No Govt 2B group, No arrows) */}
         <div className="detail-sheet-table-wrapper" style={{ overflowX: 'auto', border: '1px solid #e2e8f0', background: '#ffffff', width: '100%' }}>
           <table className="detail-sheet-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', color: '#1E1747' }}>
-          <thead>
-            {/* Top Multi-Header Row */}
-            <tr style={{ background: '#2B0A4F', color: '#ffffff', textAlign: 'center' }}>
-              <th
-                colSpan={9}
-                style={{
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                  textAlign: 'center',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
-                  background: '#2B0A4F',
-                  fontFamily: "'Bricolage Grotesque', sans-serif"
-                }}
-              >
-                Invoice &amp; Status Details
-              </th>
-              <th
-                colSpan={4}
-                style={{
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                  textAlign: 'center',
-                  background: '#240742',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.25)',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
-                  fontFamily: "'Bricolage Grotesque', sans-serif"
-                }}
-              >
-                Books (Purchase Register)
-              </th>
-              <th
-                colSpan={4}
-                style={{
-                  padding: '7px 10px',
-                  fontSize: '13px',
-                  fontWeight: 800,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                  textAlign: 'center',
-                  background: '#1d0535',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.12)',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
-                  fontFamily: "'Bricolage Grotesque', sans-serif"
-                }}
-              >
-                Govt GSTR-2B
-              </th>
-              <th
-                rowSpan={2}
-                style={{
-                  padding: '10px 12px',
-                  fontSize: '12px',
-                  fontWeight: 800,
-                  letterSpacing: '0.05em',
-                  textTransform: 'uppercase',
-                  textAlign: 'center',
-                  minWidth: '180px',
-                  width: '180px',
-                  background: '#2B0A4F',
-                  color: '#ffffff',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
-                  borderRight: '1px solid rgba(255, 255, 255, 0.12)',
-                  fontFamily: "'Bricolage Grotesque', sans-serif"
-                }}
-              >
-                Actions
-              </th>
-            </tr>
-
-            {/* Column Header Row */}
-            <tr
-              style={{
-                background: '#4A1A7A',
-                color: '#ffffff',
-                fontSize: '11.5px',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.03em',
-                whiteSpace: 'nowrap',
-                fontFamily: "'Bricolage Grotesque', sans-serif"
-              }}
-            >
-              {/* 1. S.No */}
-              <th
-                style={{
-                  width: '55px',
-                  minWidth: '55px',
-                  padding: '6px 8px',
-                  textAlign: 'center',
-                  background: '#4A1A7A',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                S.No
-              </th>
-
-              {/* 2. Book Month */}
-              <th
-                style={{
-                  width: '105px',
-                  minWidth: '105px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#4A1A7A',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Book Month
-              </th>
-
-              {/* 3. 2B Month */}
-              <th
-                style={{
-                  width: '100px',
-                  minWidth: '100px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                2B Month
-              </th>
-
-              {/* 4. Claim Month */}
-              <th
-                style={{
-                  width: '105px',
-                  minWidth: '105px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Claim Month
-              </th>
-
-              {/* 5. Invoice No. */}
-              <th
-                style={{
-                  width: '140px',
-                  minWidth: '140px',
-                  padding: '6px 12px',
-                  textAlign: 'center',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Invoice No.
-              </th>
-
-              {/* 6. Supplier GSTIN */}
-              <th
-                style={{
-                  width: '155px',
-                  minWidth: '155px',
-                  padding: '6px 12px',
-                  textAlign: 'center',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Supplier GSTIN
-              </th>
-
-              {/* 7. Supplier Name */}
-              <th
-                style={{
-                  width: '220px',
-                  minWidth: '220px',
-                  padding: '6px 14px',
-                  textAlign: 'center',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Supplier Name
-              </th>
-
-              {/* 8. Reason */}
-              <th
-                style={{
-                  width: '200px',
-                  minWidth: '200px',
-                  padding: '6px 12px',
-                  textAlign: 'center',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Reason
-              </th>
-
-              {/* 9. Status */}
-              <th
-                style={{
-                  width: '130px',
-                  minWidth: '130px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Status
-              </th>
-
-              {/* BOOKS (Purchase Register) 5 Columns */}
-              <th
-                style={{
-                  width: '115px',
-                  minWidth: '115px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#3b1263',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Taxable
-              </th>
-              <th
-                style={{
-                  width: '105px',
-                  minWidth: '105px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#3b1263',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                IGST
-              </th>
-              <th
-                style={{
-                  width: '105px',
-                  minWidth: '105px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#3b1263',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                CGST
-              </th>
-              <th
-                style={{
-                  width: '105px',
-                  minWidth: '105px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#3b1263',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                SGST
-              </th>
-
-              {/* GOVT GSTR-2B 4 Columns */}
-              <th
-                style={{
-                  width: '115px',
-                  minWidth: '115px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#2c0d4a',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                Taxable
-              </th>
-              <th
-                style={{
-                  width: '105px',
-                  minWidth: '105px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#2c0d4a',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                IGST
-              </th>
-              <th
-                style={{
-                  width: '105px',
-                  minWidth: '105px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#2c0d4a',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                CGST
-              </th>
-              <th
-                style={{
-                  width: '105px',
-                  minWidth: '105px',
-                  padding: '6px 10px',
-                  textAlign: 'center',
-                  background: '#2c0d4a',
-                  borderBottom: '1px solid rgba(255, 255, 255, 0.12)'
-                }}
-              >
-                SGST
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredItems.length === 0 ? (
-              <tr>
-                <td colSpan={18} style={{ textAlign: 'center', padding: '36px', color: '#64748b', fontSize: '14px' }}>
-                  No Old ITC invoices match the search or filter criteria.
-                </td>
+            <thead>
+              {/* Group Header Row */}
+              <tr style={{ background: '#2B0A4F', color: '#ffffff', textAlign: 'center' }}>
+                <th
+                  colSpan={9}
+                  style={{
+                    padding: '7px 10px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    textAlign: 'center',
+                    borderRight: '1px solid rgba(255, 255, 255, 0.25)',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+                    background: '#2B0A4F',
+                    fontFamily: "'Bricolage Grotesque', sans-serif"
+                  }}
+                >
+                  Invoice &amp; Status Details
+                </th>
+                <th
+                  colSpan={5}
+                  style={{
+                    padding: '7px 10px',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    textAlign: 'center',
+                    background: '#240742',
+                    borderRight: '1px solid rgba(255, 255, 255, 0.25)',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+                    fontFamily: "'Bricolage Grotesque', sans-serif"
+                  }}
+                >
+                  Books (Purchase Register)
+                </th>
+                <th
+                  rowSpan={2}
+                  style={{
+                    padding: '10px 12px',
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    textAlign: 'center',
+                    minWidth: '130px',
+                    width: '130px',
+                    background: '#2B0A4F',
+                    color: '#ffffff',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+                    fontFamily: "'Bricolage Grotesque', sans-serif"
+                  }}
+                >
+                  Actions
+                </th>
               </tr>
-            ) : (
-              filteredItems.map((item, idx) => {
-                const isClaimed = item.status === 'Matched - Claim';
 
-                // Comparison indicators for Taxable & Tax amounts
-                const renderAmt = (bAmt: number, gAmt: number, isBooks: boolean) => {
-                  const val = isBooks ? bAmt : gAmt;
-                  const other = isBooks ? gAmt : bAmt;
-                  let arrow = null;
-                  if (other > 0 && Math.abs(val - other) > 0.01) {
-                    if (val > other) {
-                      arrow = <span style={{ color: '#15803d', fontSize: '10px', marginLeft: '3px' }}>▲</span>;
-                    } else {
-                      arrow = <span style={{ color: '#b91c1c', fontSize: '10px', marginLeft: '3px' }}>▼</span>;
-                    }
-                  }
+              {/* Column Header Row */}
+              <tr
+                style={{
+                  background: '#4A1A7A',
+                  color: '#ffffff',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.03em',
+                  whiteSpace: 'nowrap',
+                  fontFamily: "'Bricolage Grotesque', sans-serif"
+                }}
+              >
+                {/* 1. S.No */}
+                <th style={{ width: '50px', minWidth: '50px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  S.No
+                </th>
+                {/* 2. Book Month */}
+                <th style={{ width: '95px', minWidth: '95px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Book Month
+                </th>
+                {/* 3. 2B Month */}
+                <th style={{ width: '95px', minWidth: '95px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  2B Month
+                </th>
+                {/* 4. Claim Month */}
+                <th style={{ width: '95px', minWidth: '95px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Claim Month
+                </th>
+                {/* 5. Invoice No. */}
+                <th style={{ width: '130px', minWidth: '130px', padding: '6px 10px', textAlign: 'left', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Invoice No.
+                </th>
+                {/* 6. Supplier GSTIN */}
+                <th style={{ width: '145px', minWidth: '145px', padding: '6px 10px', textAlign: 'left', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Supplier GSTIN
+                </th>
+                {/* 7. Supplier Name */}
+                <th style={{ width: '210px', minWidth: '210px', padding: '6px 12px', textAlign: 'left', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Supplier Name
+                </th>
+                {/* 8. Reason */}
+                <th style={{ width: '200px', minWidth: '200px', padding: '6px 10px', textAlign: 'left', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Reason
+                </th>
+                {/* 9. Status */}
+                <th style={{ width: '100px', minWidth: '100px', padding: '6px 8px', textAlign: 'center', background: '#4A1A7A', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Status
+                </th>
+
+                {/* BOOKS 5 Columns */}
+                <th style={{ width: '115px', minWidth: '115px', padding: '6px 10px', textAlign: 'right', background: '#3b1263', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Taxable
+                </th>
+                <th style={{ width: '105px', minWidth: '105px', padding: '6px 10px', textAlign: 'right', background: '#3b1263', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  IGST
+                </th>
+                <th style={{ width: '105px', minWidth: '105px', padding: '6px 10px', textAlign: 'right', background: '#3b1263', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  CGST
+                </th>
+                <th style={{ width: '105px', minWidth: '105px', padding: '6px 10px', textAlign: 'right', background: '#3b1263', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  SGST
+                </th>
+                <th style={{ width: '120px', minWidth: '120px', padding: '6px 10px', textAlign: 'right', background: '#3b1263', borderBottom: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.length === 0 ? (
+                <tr>
+                  <td colSpan={15} style={{ textAlign: 'center', padding: '36px', color: '#64748b', fontSize: '14px' }}>
+                    No verified Old ITC invoices match the search or filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredItems.map((item, idx) => {
                   return (
-                    <span>
-                      {val === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(val)}
-                      {arrow}
-                    </span>
-                  );
-                };
-
-                return (
-                  <tr
-                    key={item.id}
-                    style={{
-                      background: idx % 2 === 0 ? '#FAF8FD' : '#ffffff',
-                      borderBottom: '1px solid #e2e8f0',
-                      height: '42px'
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#F3EBFE')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? '#FAF8FD' : '#ffffff')}
-                  >
-                    {/* 1. S.No */}
-                    <td
+                    <tr
+                      key={item.id}
                       style={{
-                        width: '55px',
-                        minWidth: '55px',
-                        padding: '8px 8px',
-                        textAlign: 'center',
-                        color: '#64748b',
-                        fontWeight: 600
+                        background: idx % 2 === 0 ? '#FAF8FD' : '#ffffff',
+                        borderBottom: '1px solid #e2e8f0',
+                        height: '40px'
                       }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#F3EBFE')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = idx % 2 === 0 ? '#FAF8FD' : '#ffffff')}
                     >
-                      {idx + 1}
-                    </td>
+                      {/* 1. S.No */}
+                      <td style={{ width: '50px', minWidth: '50px', padding: '6px 8px', textAlign: 'center', color: '#64748b', fontWeight: 600 }}>
+                        {idx + 1}
+                      </td>
 
-                    {/* 2. Book Month */}
-                    <td
-                      style={{
-                        width: '105px',
-                        minWidth: '105px',
-                        padding: '8px 10px',
-                        textAlign: 'center',
-                        fontWeight: 700,
-                        color: '#334155'
-                      }}
-                    >
-                      {item.originalMonth}
-                    </td>
+                      {/* 2. Book Month */}
+                      <td style={{ width: '95px', minWidth: '95px', padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#334155' }}>
+                        {item.originalMonth}
+                      </td>
 
-                    {/* 3. 2B Month */}
-                    <td
-                      style={{
-                        width: '100px',
-                        minWidth: '100px',
-                        padding: '8px 10px',
-                        textAlign: 'center',
-                        fontWeight: 600,
-                        color: item.month2b ? '#334155' : '#94a3b8'
-                      }}
-                    >
-                      {item.month2b || '-'}
-                    </td>
+                      {/* 3. 2B Month */}
+                      <td style={{ width: '95px', minWidth: '95px', padding: '6px 8px', textAlign: 'center', fontWeight: 600, color: item.month2b ? '#334155' : '#94a3b8' }}>
+                        {item.month2b || '-'}
+                      </td>
 
-                    {/* 4. Claim Month */}
-                    <td
-                      style={{
-                        width: '105px',
-                        minWidth: '105px',
-                        padding: '8px 10px',
-                        textAlign: 'center',
-                        fontWeight: 700,
-                        color: isClaimed ? '#15803d' : '#94a3b8'
-                      }}
-                    >
-                      {isClaimed ? (item.claimMonth || '-') : '-'}
-                    </td>
+                      {/* 4. Claim Month */}
+                      <td style={{ width: '95px', minWidth: '95px', padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: '#15803d' }}>
+                        {item.claimMonth || workingMonth}
+                      </td>
 
-                    {/* 5. Invoice No. */}
-                    <td
-                      style={{
-                        width: '140px',
-                        minWidth: '140px',
-                        padding: '8px 12px',
-                        textAlign: 'left',
-                        fontWeight: 700,
-                        color: '#1E1747',
-                        fontSize: '13px'
-                      }}
-                    >
-                      {item.invNo}
-                    </td>
+                      {/* 5. Invoice No. */}
+                      <td style={{ width: '130px', minWidth: '130px', padding: '6px 10px', textAlign: 'left', fontWeight: 700, color: '#1E1747', fontSize: '13px' }}>
+                        {item.invNo}
+                      </td>
 
-                    {/* 6. Supplier GSTIN */}
-                    <td
-                      style={{
-                        width: '155px',
-                        minWidth: '155px',
-                        padding: '8px 12px',
-                        textAlign: 'left',
-                        fontFamily: 'monospace',
-                        fontSize: '12px'
-                      }}
-                    >
-                      {item.gstin}
-                    </td>
+                      {/* 6. Supplier GSTIN */}
+                      <td style={{ width: '145px', minWidth: '145px', padding: '6px 10px', textAlign: 'left', fontFamily: 'monospace', fontSize: '12px' }}>
+                        {item.gstin}
+                      </td>
 
-                    {/* 7. Supplier Name */}
-                    <td
-                      style={{
-                        width: '220px',
-                        minWidth: '220px',
-                        padding: '8px 14px',
-                        textAlign: 'left',
-                        fontWeight: 600,
-                        color: '#1E1747'
-                      }}
-                    >
-                      {item.supplierName}
-                    </td>
+                      {/* 7. Supplier Name */}
+                      <td style={{ width: '210px', minWidth: '210px', padding: '6px 12px', textAlign: 'left', fontWeight: 600, color: '#1E1747' }}>
+                        {item.supplierName}
+                      </td>
 
-                    {/* 8. Reason */}
-                    <td
-                      style={{
-                        width: '200px',
-                        minWidth: '200px',
-                        padding: '8px 12px',
-                        textAlign: 'left',
-                        fontSize: '12px',
-                        color: '#475569'
-                      }}
-                      title={item.reason}
-                    >
-                      {item.reason}
-                    </td>
+                      {/* 8. Reason */}
+                      <td style={{ width: '200px', minWidth: '200px', padding: '6px 10px', textAlign: 'left', fontSize: '12px', color: '#15803d', fontWeight: 600 }}>
+                        {item.reason}
+                      </td>
 
-                    {/* 9. Status */}
-                    <td
-                      style={{
-                        width: '130px',
-                        minWidth: '130px',
-                        padding: '8px 10px',
-                        textAlign: 'center'
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '2px 8px',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          borderRadius: '2px',
-                          background: isClaimed ? '#dcfce7' : '#fef3c7',
-                          color: isClaimed ? '#15803d' : '#b45309',
-                          border: isClaimed ? '1px solid #86efac' : '1px solid #fde68a'
-                        }}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
-
-                    {/* BOOKS 4 Columns (Same Purple tint #F6F2FC) */}
-                    <td style={{ width: '115px', minWidth: '115px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
-                      {renderAmt(item.bTaxable, item.gTaxable, true)}
-                    </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
-                      {renderAmt(item.bIgst, item.gIgst, true)}
-                    </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
-                      {renderAmt(item.bCgst, item.gCgst, true)}
-                    </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
-                      {renderAmt(item.bSgst, item.gSgst, true)}
-                    </td>
-
-                    {/* GOVT 2B 4 Columns (Lavender tint #F6F2FC) */}
-                    <td style={{ width: '115px', minWidth: '115px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
-                      {renderAmt(item.bTaxable, item.gTaxable, false)}
-                    </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
-                      {renderAmt(item.bIgst, item.gIgst, false)}
-                    </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
-                      {renderAmt(item.bCgst, item.gCgst, false)}
-                    </td>
-                    <td style={{ width: '105px', minWidth: '105px', padding: '8px 10px', textAlign: 'right', background: '#F6F2FC', fontWeight: 600 }}>
-                      {renderAmt(item.bSgst, item.gSgst, false)}
-                    </td>
-
-                    {/* Action Column: View, Audit, Move to Not Claim */}
-                    <td
-                      style={{
-                        width: '180px',
-                        minWidth: '180px',
-                        padding: '8px 12px',
-                        textAlign: 'center',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      <div style={{ display: 'inline-flex', gap: '4px' }}>
-                        <button
-                          type="button"
-                          className="btn-action-view"
-                          onClick={() => setViewItem(item)}
-                          title="View Side-by-Side Comparison"
+                      {/* 9. Status: Verified Green Badge */}
+                      <td style={{ width: '100px', minWidth: '100px', padding: '6px 8px', textAlign: 'center' }}>
+                        <span
                           style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: '#f1f5f9',
-                            color: '#334155',
-                            border: '1px solid #cbd5e1',
-                            padding: '3px 8px',
+                            display: 'inline-block',
+                            padding: '2px 8px',
                             fontSize: '11px',
                             fontWeight: 700,
-                            cursor: 'pointer',
-                            borderRadius: 0
+                            borderRadius: '3px',
+                            background: '#dcfce7',
+                            color: '#15803d',
+                            border: '1px solid #86efac'
                           }}
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                          </svg>
-                          <span>View</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-action-audit"
-                          onClick={() => handleOpenAudit(item)}
-                          title="Add Audit Note & Mark Verified/Query"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: item.auditStatus === 'Verified' ? '#dcfce7' : '#FAF5FF',
-                            color: item.auditStatus === 'Verified' ? '#15803d' : '#6B21A8',
-                            border: item.auditStatus === 'Verified' ? '1px solid #86efac' : '1px solid #D8B4FE',
-                            padding: '3px 8px',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            borderRadius: 0
-                          }}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 20h9"></path>
-                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-                          </svg>
-                          <span>Audit</span>
-                        </button>
-                        {!isClaimed && (
+                          Verified
+                        </span>
+                      </td>
+
+                      {/* BOOKS 5 Columns */}
+                      <td style={{ width: '115px', minWidth: '115px', padding: '6px 10px', textAlign: 'right', background: '#FAF5FF', fontWeight: 600 }}>
+                        {item.bTaxable === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bTaxable)}
+                      </td>
+                      <td style={{ width: '105px', minWidth: '105px', padding: '6px 10px', textAlign: 'right', background: '#FAF5FF', fontWeight: 600 }}>
+                        {item.bIgst === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bIgst)}
+                      </td>
+                      <td style={{ width: '105px', minWidth: '105px', padding: '6px 10px', textAlign: 'right', background: '#FAF5FF', fontWeight: 600 }}>
+                        {item.bCgst === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bCgst)}
+                      </td>
+                      <td style={{ width: '105px', minWidth: '105px', padding: '6px 10px', textAlign: 'right', background: '#FAF5FF', fontWeight: 600 }}>
+                        {item.bSgst === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bSgst)}
+                      </td>
+                      <td style={{ width: '120px', minWidth: '120px', padding: '6px 10px', textAlign: 'right', background: '#F3E8FF', fontWeight: 700, color: '#4C1D95' }}>
+                        {item.bTotal === 0 ? <span style={{ color: '#94a3b8' }}>0.00</span> : formatInr(item.bTotal)}
+                      </td>
+
+                      {/* Actions: View and Audit */}
+                      <td style={{ width: '130px', minWidth: '130px', padding: '6px 10px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', gap: '6px' }}>
                           <button
                             type="button"
-                            disabled={isLocked}
-                            onClick={() => handleMoveToNotClaim(item)}
+                            className="btn-action-view"
+                            onClick={() => setViewItem(item)}
+                            title="View Side-by-Side Comparison"
                             style={{
-                              background: isLocked ? '#f1f5f9' : '#fef2f2',
-                              color: isLocked ? '#94a3b8' : '#b91c1c',
-                              border: isLocked ? '1px solid #cbd5e1' : '1px solid #fecaca',
-                              padding: '3px 7px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: '#f1f5f9',
+                              color: '#334155',
+                              border: '1px solid #cbd5e1',
+                              padding: '3px 8px',
                               fontSize: '11px',
                               fontWeight: 700,
-                              cursor: isLocked ? 'not-allowed' : 'pointer',
-                              borderRadius: 0,
-                              opacity: isLocked ? 0.6 : 1
+                              cursor: 'pointer',
+                              borderRadius: 0
                             }}
-                            title={isLocked ? 'Month locked - action disabled' : 'Move to Not Claim ITC'}
                           >
-                            Not Claim
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                              <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                            <span>View</span>
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                          <button
+                            type="button"
+                            className="btn-action-audit"
+                            onClick={() => handleOpenAudit(item)}
+                            title="Add Audit Note & Mark Verified/Query"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: item.auditStatus === 'Verified' ? '#dcfce7' : '#FAF5FF',
+                              color: item.auditStatus === 'Verified' ? '#15803d' : '#6B21A8',
+                              border: item.auditStatus === 'Verified' ? '1px solid #86efac' : '1px solid #D8B4FE',
+                              padding: '3px 8px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              borderRadius: 0
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 20h9"></path>
+                              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                            </svg>
+                            <span>Audit</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+            {/* Total Row: Only Books Amounts Total */}
+            <tfoot>
+              <tr style={{ background: '#240742', color: '#ffffff', fontWeight: 800, fontSize: '12px' }}>
+                <td colSpan={9} style={{ padding: '8px 12px', textAlign: 'right', letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                  Total ({filteredItems.length} Invoices)
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  ₹{formatInr(summaryValues.taxable)}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  ₹{formatInr(summaryValues.igst)}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  ₹{formatInr(summaryValues.cgst)}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  ₹{formatInr(summaryValues.sgst)}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#F3E8FF', background: '#350B5E' }}>
+                  ₹{formatInr(summaryValues.grandTotal)}
+                </td>
+                <td style={{ padding: '8px 10px', textAlign: 'center' }}>-</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
-    </div>
 
       {/* ======================================================== */}
       {/* 4. Side-by-Side View Modal (GST RecoManager Style)        */}
@@ -1084,10 +692,19 @@ export default function OldItcDetailSheet({
         const dTotalGst = bTotalGst - gTotalGst;
 
         const has2b = Boolean(viewItem.month2b || viewItem.gTaxable || viewItem.gIgst || viewItem.gCgst || viewItem.gSgst || viewItem.gInvNo);
-        const isTaxableMatch = has2b && Math.abs(viewItem.bTaxable - viewItem.gTaxable) <= 1;
-        const isIgstMatch = has2b && Math.abs(viewItem.bIgst - viewItem.gIgst) <= 1;
-        const isCgstMatch = has2b && Math.abs(viewItem.bCgst - viewItem.gCgst) <= 1;
-        const isSgstMatch = has2b && Math.abs(viewItem.bSgst - viewItem.gSgst) <= 1;
+        const bTaxable = Number(viewItem.bTaxable || 0);
+        const gTaxable = Number(viewItem.gTaxable || 0);
+        const bIgst = Number(viewItem.bIgst || 0);
+        const gIgst = Number(viewItem.gIgst || 0);
+        const bCgst = Number(viewItem.bCgst || 0);
+        const gCgst = Number(viewItem.gCgst || 0);
+        const bSgst = Number(viewItem.bSgst || 0);
+        const gSgst = Number(viewItem.gSgst || 0);
+
+        const isTaxableMatch = has2b && Math.abs(bTaxable - gTaxable) <= 1.00;
+        const isIgstMatch = has2b && Math.abs(bIgst - gIgst) <= 1.00;
+        const isCgstMatch = has2b && Math.abs(bCgst - gCgst) <= 1.00;
+        const isSgstMatch = has2b && Math.abs(bSgst - gSgst) <= 1.00;
         const isInvMatch = has2b ? (viewItem.gInvNo ? cleanInv(viewItem.invNo) === cleanInv(viewItem.gInvNo) : true) : false;
         const isGstinMatch = true;
         const isAllFieldsMatch = isGstinMatch && isInvMatch && isTaxableMatch && isIgstMatch && isCgstMatch && isSgstMatch;

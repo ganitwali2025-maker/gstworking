@@ -288,20 +288,17 @@ export default function WorkingStepsView({
                 className="step-card-badge"
                 style={{ color: '#6D28D9', fontWeight: 700, fontSize: '13px' }}
               >
-                {oldItcData.pendingCount} Invoices
+                {oldItcData.matchedCount} Invoices
               </span>
             </div>
             <div className="step-card-body">
-              <h3 className="step-card-title">Old ITC – Carried Forward</h3>
+              <h3 className="step-card-title">Old ITC - Carried Forward</h3>
               <p className="step-card-desc-en">
-                Earlier months' unmatched ITC, re-checked against GSTR-2B every month.
+                Earlier months' unmatched ITC, matched and verified in a later month.
               </p>
               <p className="step-card-desc-hi">
-                पिछले महीनों का अनमैच ITC, हर महीने GSTR-2B से दोबारा मिलान।
+                पिछले महीनों का अनमैच ITC, बाद के महीने में मिलान होकर सत्यापित।
               </p>
-              <div style={{ marginTop: '8px', fontSize: '12.5px', fontWeight: 700, color: '#6D28D9' }}>
-                Pending ITC: ₹{formatInr(oldItcData.pendingTotalItc)}
-              </div>
             </div>
             <div className="step-card-footer">
               <span
@@ -405,7 +402,7 @@ export default function WorkingStepsView({
             style={{ cursor: 'pointer' }}
           >
             <div className="step-card-header">
-              <div className="step-card-icon-box icon-darkred" title="Not Claim ITC">
+              <div className="step-card-icon-box icon-darkred" title="Not Claim / Not Match ITC">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7F1D1D" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
                   <line x1="12" y1="8" x2="12" y2="12" />
@@ -420,12 +417,12 @@ export default function WorkingStepsView({
               </span>
             </div>
             <div className="step-card-body">
-              <h3 className="step-card-title">Not Claim ITC</h3>
+              <h3 className="step-card-title">Not Claim / Not Match ITC</h3>
               <p className="step-card-desc-en">
-                Unmatched even after re-check. Follow up with supplier.
+                Not Match and Not in 2B invoices, still unmatched after re-check. Follow up with supplier.
               </p>
               <p className="step-card-desc-hi">
-                दोबारा जाँच के बाद भी मिलान नहीं। सप्लायर से संपर्क करें।
+                नॉट मैच एवं 2B में अनुपलब्ध इनवॉइस, दोबारा जाँच के बाद भी मिलान नहीं। सप्लायर से संपर्क करें।
               </p>
               <div style={{ marginTop: '8px', fontSize: '12.5px', fontWeight: 700, color: '#7F1D1D' }}>
                 ITC at risk: ₹{formatInr(oldItcData.notClaimTotalItc)}
@@ -459,7 +456,7 @@ export default function WorkingStepsView({
                   cursor: 'pointer'
                 }}
               >
-                Open Not Claim ITC
+                Open Not Claim / Not Match
               </button>
             </div>
           </div>

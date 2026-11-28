@@ -4,6 +4,7 @@ import { getQueryParams, updateQueryParams } from '../utils/router';
 import defaultRegisters from '../data/defaultRegisters.json';
 import { loadRegisterRows, saveRegisterRow, REGISTER_TABS } from '../services/registerService';
 import { GST_LOCK_CHANGED_EVENT, GST_LOCKS_STORAGE_KEY } from '../services/lockService';
+import { saveLockedMonthToPool } from '../services/oldItcService';
 
 // ==========================================
 // Types & Interfaces
@@ -1635,6 +1636,7 @@ export default function ReconciliationView({
               user: userName
             });
             localStorage.setItem('gst_reco_lock_logs_v1', JSON.stringify(logs));
+            saveLockedMonthToPool(workingMonth, computedInvoices);
             window.dispatchEvent(new CustomEvent(GST_LOCK_CHANGED_EVENT, { detail: { workingMonth, locked: true } }));
           } catch { }
 

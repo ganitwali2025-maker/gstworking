@@ -96,9 +96,12 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
   pendingItems: OldItcItem[];
   matchedClaimItems: OldItcItem[];
   notClaimItems: OldItcItem[];
+  unmatchedItems: OldItcItem[];
   supplierRiskSummary: SupplierItcRiskSummary[];
   pendingCount: number;
   pendingTotalItc: number;
+  matchedCount: number;
+  matchedTotalItc: number;
   notClaimCount: number;
   notClaimTotalItc: number;
 } {
@@ -218,7 +221,7 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
         gCgst: 0,
         gSgst: 0,
         gTotal: 0,
-        reason: 'Not in 2B: supplier ne file nahi kiya (possible quarterly filer)',
+        reason: 'Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)',
         mismatchFields: ['GSTR-2B Missing'],
         itcMatchRatio: '0/6',
         status: 'Pending',
@@ -315,7 +318,7 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
 
       item.status = 'Matched - Claim';
       item.month2b = gMonth;
-      item.claimMonth = gMonth;
+      item.claimMonth = workingMonth;
       item.itcMatchRatio = '6/6';
       item.reason = `6/6 Match – Reflected in 2B (${gMonth})`;
       item.mismatchFields = [];
@@ -331,8 +334,9 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
       item.month2b = gMonth;
       item.claimMonth = undefined;
       item.itcMatchRatio = `${highestFieldMatch}/6`;
-      item.reason = `Wrong detail in 2B: ${partialMismatches.join(' / ')}`;
-      item.mismatchFields = partialMismatches;
+      const cleanMismatches = partialMismatches.map((m) => (m === 'Taxable Value' ? 'Taxable' : m));
+      item.reason = `Not Match: ${cleanMismatches.join(', ')}`;
+      item.mismatchFields = cleanMismatches;
       item.gInvNo = partial2b.invNo || partial2b.n;
       const gTaxable = round2(Number(partial2b.taxable || partial2b.t || 0));
       const gIgst = round2(Number(partial2b.igst || partial2b.i || 0));
@@ -348,7 +352,7 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
       item.month2b = undefined;
       item.claimMonth = undefined;
       item.itcMatchRatio = '0/6';
-      item.reason = 'Not in 2B: supplier ne file nahi kiya (possible quarterly filer)';
+      item.reason = 'Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)';
       item.mismatchFields = ['GSTR-2B Missing'];
       item.gTaxable = 0;
       item.gIgst = 0;
@@ -363,13 +367,15 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
   const pendingItems = poolArray.filter((x) => x.status === 'Pending');
   const matchedClaimItems = poolArray.filter((x) => x.status === 'Matched - Claim');
   const notClaimItems = poolArray.filter((x) => x.status === 'Not Claim');
+  const unmatchedItems = poolArray.filter((x) => x.status !== 'Matched - Claim');
 
   const pendingTotalItc = round2(pendingItems.reduce((acc, r) => acc + (r.bIgst + r.bCgst + r.bSgst), 0));
-  const notClaimTotalItc = round2(notClaimItems.reduce((acc, r) => acc + (r.bIgst + r.bCgst + r.bSgst), 0));
+  const notClaimTotalItc = round2(unmatchedItems.reduce((acc, r) => acc + (r.bIgst + r.bCgst + r.bSgst), 0));
+  const matchedTotalItc = round2(matchedClaimItems.reduce((acc, r) => acc + (r.bIgst + r.bCgst + r.bSgst), 0));
 
-  // Supplier-wise ITC at risk summary for Not Claim ITC
+  // Supplier-wise ITC at risk summary for Not Claim / Not Match ITC
   const riskMap = new Map<string, SupplierItcRiskSummary>();
-  notClaimItems.forEach((r) => {
+  unmatchedItems.forEach((r) => {
     const key = r.gstin || r.supplierName;
     const itc = round2(r.bIgst + r.bCgst + r.bSgst);
     const existing = riskMap.get(key);
@@ -395,12 +401,108 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
     pendingItems,
     matchedClaimItems,
     notClaimItems,
+    unmatchedItems,
     supplierRiskSummary,
     pendingCount: pendingItems.length,
     pendingTotalItc,
-    notClaimCount: notClaimItems.length,
+    matchedCount: matchedClaimItems.length,
+    matchedTotalItc,
+    notClaimCount: unmatchedItems.length,
     notClaimTotalItc
   };
+}
+
+/**
+ * When a month is locked, save its Not Match and Not in 2B invoices to carry pool
+ */
+export function saveLockedMonthToPool(workingMonth: string, reconciledInvoices: any[]): void {
+  if (!reconciledInvoices || !Array.isArray(reconciledInvoices)) return;
+  const pool = getOldItcPool();
+  const poolMap = new Map<string, OldItcItem>(pool.map((x) => [x.id, x]));
+
+  reconciledInvoices.forEach((r) => {
+    // Only 'Not Match' and 'Not in GSTR-2B' carry forward
+    if (r.status !== 'Not Match' && r.status !== 'Not in GSTR-2B') return;
+    // Debit Notes do NOT carry forward
+    if ((r.invNo && String(r.invNo).toUpperCase().includes('DBN')) || (r.taxable && r.taxable < 0)) return;
+
+    const bTaxable = round2(Number(r.taxable || r.t || 0));
+    const bIgst = round2(Number(r.igst || r.i || 0));
+    const bCgst = round2(Number(r.cgst || r.c || 0));
+    const bSgst = round2(Number(r.sgst || r.s || 0));
+    const bTotal = round2(bTaxable + bIgst + bCgst + bSgst);
+
+    const gTaxable = round2(Number(r.gTaxable || 0));
+    const gIgst = round2(Number(r.gIgst || 0));
+    const gCgst = round2(Number(r.gCgst || 0));
+    const gSgst = round2(Number(r.gSgst || 0));
+    const gTotal = round2(gTaxable + gIgst + gCgst + gSgst);
+
+    let reason = '';
+    const mismatchFields: string[] = [];
+    if (r.status === 'Not in GSTR-2B') {
+      reason = 'Not in 2B: supplier ne return file nahi kiya (possible quarterly filer)';
+      mismatchFields.push('GSTR-2B Missing');
+    } else {
+      const mismatches: string[] = [];
+      if (r.mismatches && Array.isArray(r.mismatches) && r.mismatches.length > 0) {
+        mismatches.push(...r.mismatches.map((m: string) => (m === 'Taxable Value' ? 'Taxable' : m)));
+      } else {
+        if (Math.abs(bTaxable - gTaxable) > 1) mismatches.push('Taxable');
+        if (Math.abs(bIgst - gIgst) > 1) mismatches.push('IGST');
+        if (Math.abs(bCgst - gCgst) > 1) mismatches.push('CGST');
+        if (Math.abs(bSgst - gSgst) > 1) mismatches.push('SGST');
+        if (cleanInv(r.invNo) !== cleanInv(r.gInvNo)) mismatches.push('Invoice No');
+      }
+      reason = mismatches.length > 0 ? `Not Match: ${mismatches.join(', ')}` : 'Not Match: Taxable, Tax Mismatch';
+      mismatchFields.push(...mismatches);
+    }
+
+    const existing = poolMap.get(r.id);
+    if (existing) {
+      existing.bTaxable = bTaxable;
+      existing.bIgst = bIgst;
+      existing.bCgst = bCgst;
+      existing.bSgst = bSgst;
+      existing.bTotal = bTotal;
+      existing.gTaxable = gTaxable;
+      existing.gIgst = gIgst;
+      existing.gCgst = gCgst;
+      existing.gSgst = gSgst;
+      existing.gTotal = gTotal;
+      if (existing.status !== 'Matched - Claim') {
+        existing.reason = reason;
+        existing.mismatchFields = mismatchFields;
+      }
+    } else {
+      poolMap.set(r.id, {
+        id: r.id,
+        originalMonth: workingMonth,
+        date: r.date || '',
+        invNo: r.invNo || '',
+        gstin: r.gstin || '',
+        supplierName: r.supplierName || '',
+        bTaxable,
+        bIgst,
+        bCgst,
+        bSgst,
+        bTotal,
+        gTaxable,
+        gIgst,
+        gCgst,
+        gSgst,
+        gTotal,
+        reason,
+        mismatchFields,
+        itcMatchRatio: r.status === 'Not Match' ? '4/6' : '0/6',
+        status: 'Pending',
+        pendingMonthsCount: 1,
+        updatedAt: Date.now()
+      });
+    }
+  });
+
+  saveOldItcPool(Array.from(poolMap.values()), true);
 }
 
 export function moveToNotClaim(id: string, reason?: string): void {
