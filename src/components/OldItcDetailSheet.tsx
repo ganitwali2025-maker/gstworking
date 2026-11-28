@@ -1476,9 +1476,9 @@ export default function OldItcDetailSheet({
                       Saved Audit Observation ({viewItem.auditStatus || 'Pending'}):
                     </div>
                     <div style={{ fontSize: '13px', color: '#1E293B', fontWeight: 500 }}>{viewItem.auditNote}</div>
-                    {viewItem.auditUpdatedAt && (
+                    {(viewItem as any).auditUpdatedAt && (
                       <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px', fontWeight: 500 }}>
-                        Updated: {viewItem.auditUpdatedAt}
+                        Updated: {(viewItem as any).auditUpdatedAt}
                       </div>
                     )}
                   </div>
