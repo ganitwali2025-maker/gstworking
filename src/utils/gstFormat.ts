@@ -8,7 +8,7 @@ export const QM: Record<string, string[]> = {
   Q4: ['Jan', 'Feb', 'Mar']
 };
 
-export const inr = (n: number): string => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+export const inr = (n: number | null | undefined): string => '₹' + Math.round(Number(n) || 0).toLocaleString('en-IN');
 
 export const fm = (p: number): string => {
   const num = Number(p) || 0;

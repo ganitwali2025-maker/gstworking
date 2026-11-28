@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useGstStore } from './hooks/useGstStore';
 import { initAutoSyncRetryListener } from './services/registerService';
+import { parseWorkingMonth } from './services/lockService';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import RegisterPeriodBar from './components/RegisterPeriodBar';
@@ -53,27 +54,7 @@ export default function App() {
   const toggleSidebarCollapse = () => setIsSidebarCollapsed((prev) => !prev);
 
   const workingMonth = useMemo(() => {
-    let year = '2026';
-    if (fy) {
-      const match = fy.replace(/[^0-9]/g, '').slice(0, 4);
-      if (match) year = match;
-    }
-    let m = (month || '').trim();
-    if (!m || m.toUpperCase() === 'ALL') {
-      m = 'Oct';
-    }
-    const MONTH_MAP: Record<string, string> = {
-      jan: 'Jan', january: 'Jan', feb: 'Feb', february: 'Feb',
-      mar: 'Mar', march: 'Mar', apr: 'Apr', april: 'Apr',
-      may: 'May', jun: 'Jun', june: 'Jun', jul: 'Jul', july: 'Jul',
-      aug: 'Aug', august: 'Aug', sep: 'Sep', sept: 'Sep', september: 'Sep',
-      oct: 'Oct', october: 'Oct', nov: 'Nov', november: 'Nov', dec: 'Dec'
-    };
-    const stdMonth = MONTH_MAP[m.toLowerCase()] || (m ? m.charAt(0).toUpperCase() + m.slice(1, 3) : 'Oct');
-    if (['Jan', 'Feb', 'Mar'].includes(stdMonth) && year === '2026') {
-      year = '2027';
-    }
-    return `${stdMonth}-${year}`;
+    return parseWorkingMonth(month, fy);
   }, [fy, month]);
 
   useEffect(() => {

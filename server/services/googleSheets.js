@@ -311,7 +311,6 @@ async function sendToAppsScript(payload) {
     // If local Windows machine or proxy causes TLS leaf cert issue, retry safely
     if (err && (err.cause?.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' || err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE')) {
       try {
-        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
         const retryRes = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

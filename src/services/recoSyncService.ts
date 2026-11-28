@@ -57,10 +57,43 @@ export const ALL_FY_MONTHS = [
   { value: 'Mar-2027', label: 'March-2027', short: 'Mar' }
 ];
 
-export function getMonthPriority(targetM: string, currentM: string): number {
+export function getFyMonthList(fyStr?: string): { value: string; label: string; short: string }[] {
+  let yr = '2026';
+  if (fyStr) {
+    const m = fyStr.replace(/[^0-9]/g, '').slice(0, 4);
+    if (m) yr = m;
+  }
+  const startYr = parseInt(yr, 10) || 2026;
+  const endYr = startYr + 1;
+  const months = [
+    { short: 'Apr', label: 'April' },
+    { short: 'May', label: 'May' },
+    { short: 'Jun', label: 'June' },
+    { short: 'Jul', label: 'July' },
+    { short: 'Aug', label: 'August' },
+    { short: 'Sep', label: 'September' },
+    { short: 'Oct', label: 'October' },
+    { short: 'Nov', label: 'November' },
+    { short: 'Dec', label: 'December' },
+    { short: 'Jan', label: 'January' },
+    { short: 'Feb', label: 'February' },
+    { short: 'Mar', label: 'March' }
+  ];
+  return months.map((m) => {
+    const y = ['Jan', 'Feb', 'Mar'].includes(m.short) ? endYr : startYr;
+    return {
+      value: `${m.short}-${y}`,
+      label: `${m.label}-${y}`,
+      short: m.short
+    };
+  });
+}
+
+export function getMonthPriority(targetM: string, currentM: string, fyStr?: string): number {
   if (targetM === currentM) return 0;
-  const currIdx = ALL_FY_MONTHS.findIndex((m) => m.value === currentM);
-  const targetIdx = ALL_FY_MONTHS.findIndex((m) => m.value === targetM);
+  const monthList = getFyMonthList(fyStr);
+  const currIdx = monthList.findIndex((m) => m.value === currentM);
+  const targetIdx = monthList.findIndex((m) => m.value === targetM);
   if (currIdx === -1 || targetIdx === -1) return 999;
   if (targetIdx > currIdx) {
     return 10 + (targetIdx - currIdx);
@@ -115,8 +148,11 @@ export const parseRecordMonth = (item: any, defaultMonth: string = 'Oct'): strin
   };
   const mClean = parsedMonth.toLowerCase();
   const stdMonth = MONTH_MAP[mClean] || (mClean ? mClean.charAt(0).toUpperCase() + mClean.slice(1, 3) : defaultMonth);
-  if (['Jan', 'Feb', 'Mar'].includes(stdMonth) && parsedYear === '2026') {
-    parsedYear = '2027';
+  const startYr = parseInt(parsedYear, 10) || 2026;
+  if (['Jan', 'Feb', 'Mar'].includes(stdMonth)) {
+    parsedYear = String(startYr + 1);
+  } else {
+    parsedYear = String(startYr);
   }
   return `${stdMonth}-${parsedYear}`;
 };

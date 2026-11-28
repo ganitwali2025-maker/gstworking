@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { useLiveReconciliation } from '../services/recoSyncService';
 import { loadRegisterRows, REGISTER_TABS } from '../services/registerService';
+import { isWorkingMonthLocked, GST_LOCK_CHANGED_EVENT } from '../services/lockService';
 
 export type WorkingDetailCategory = 'matched' | 'not-in-book' | 'not-in-2b';
 
@@ -140,6 +141,14 @@ export default function WorkingStepsDetailSheet({
 }: WorkingStepsDetailSheetProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLocked, setIsLocked] = useState<boolean>(() => isWorkingMonthLocked(workingMonth));
+
+  useEffect(() => {
+    setIsLocked(isWorkingMonthLocked(workingMonth));
+    const handleLockEvt = () => setIsLocked(isWorkingMonthLocked(workingMonth));
+    window.addEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+    return () => window.removeEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+  }, [workingMonth]);
 
   // Live one-way sync with Reco sheet engine
   const recoData = useLiveReconciliation(workingMonth);
@@ -457,7 +466,7 @@ export default function WorkingStepsDetailSheet({
               type="button"
               className="btn-gstr1 btn-refresh"
               onClick={handleRefresh}
-              disabled={isRefreshing}
+              disabled={isRefreshing || isLocked}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -465,9 +474,10 @@ export default function WorkingStepsDetailSheet({
                 padding: '6px 14px',
                 fontSize: '12px',
                 fontWeight: 700,
-                cursor: isRefreshing ? 'not-allowed' : 'pointer'
+                cursor: (isRefreshing || isLocked) ? 'not-allowed' : 'pointer',
+                opacity: isLocked ? 0.6 : 1
               }}
-              title="Reload latest reconciliation data"
+              title={isLocked ? 'Month is locked - refresh disabled' : 'Reload latest reconciliation data'}
             >
               <svg
                 width="15"

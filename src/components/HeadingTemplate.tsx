@@ -1,9 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { updateQueryParams } from '../utils/router';
 import { normalizeFy } from '../services/registerService';
+import { isMonthLocked, GST_LOCK_CHANGED_EVENT } from '../services/lockService';
 
 export const MONTH_OPTIONS = [
-  { value: 'ALL', label: 'All Months' },
   { value: 'Apr', label: 'April' },
   { value: 'May', label: 'May' },
   { value: 'Jun', label: 'June' },
@@ -85,9 +85,9 @@ interface HeadingTemplateProps {
 }
 
 export default function HeadingTemplate({
-  fy = 'ALL',
+  fy = 'FY 2026–27',
   setFy,
-  month = 'ALL',
+  month = 'Oct',
   setMonth,
   fyOptions = DEFAULT_FY_OPTIONS,
   searchQuery,
@@ -96,10 +96,18 @@ export default function HeadingTemplate({
   showSearch = false,
   className = ''
 }: HeadingTemplateProps) {
+  const [lockVersion, setLockVersion] = useState(0);
+
+  useEffect(() => {
+    const onLockChange = () => setLockVersion((v) => v + 1);
+    window.addEventListener(GST_LOCK_CHANGED_EVENT, onLockChange);
+    return () => window.removeEventListener(GST_LOCK_CHANGED_EVENT, onLockChange);
+  }, []);
+
   const allFyOptions = Array.from(new Set(['FY 2026–27', 'FY 2025–26', ...(fyOptions || [])]));
 
   const selectedFyValue = useMemo(() => {
-    if (!fy || fy.toUpperCase() === 'ALL') return 'ALL';
+    if (!fy || fy.toUpperCase() === 'ALL') return 'FY 2026–27';
     const clean = fy.trim();
     const matched = allFyOptions.find(
       (opt) => opt.toLowerCase() === clean.toLowerCase() || normalizeFy(opt) === normalizeFy(clean)
@@ -108,7 +116,7 @@ export default function HeadingTemplate({
   }, [fy, allFyOptions]);
 
   const selectedMonthValue = useMemo(() => {
-    if (!month || month.toUpperCase() === 'ALL') return 'ALL';
+    if (!month || month.toUpperCase() === 'ALL') return 'Oct';
     const clean = month.trim().toLowerCase();
     const matched = MONTH_OPTIONS.find(
       (m) => m.value.toLowerCase() === clean || m.label.toLowerCase() === clean || clean.startsWith(m.value.toLowerCase())
@@ -116,24 +124,34 @@ export default function HeadingTemplate({
     return matched ? matched.value : clean;
   }, [month]);
 
-  // Dynamic month options with Year (e.g. "September 2026") matching requested design
+  // Dynamic 12 month options with Year and Lock icon (e.g. "October 2026 🔒")
   const dynamicMonthOptions = useMemo(() => {
     const yrMatch = selectedFyValue.match(/\b(20\d\d)\b/);
     const startYr = yrMatch ? parseInt(yrMatch[1], 10) : 2026;
     const endYr = startYr + 1;
 
     return MONTH_OPTIONS.map((m) => {
-      if (m.value === 'ALL') {
-        return { value: 'ALL', label: 'All Months' };
-      }
       const isLateQuarter = ['Jan', 'Feb', 'Mar'].includes(m.value);
       const year = isLateQuarter ? endYr : startYr;
+      const locked = isMonthLocked(m.value, selectedFyValue);
       return {
         value: m.value,
-        label: `${m.label} ${year}`
+        label: `${m.label} ${year}${locked ? ' 🔒' : ''}`
       };
     });
-  }, [selectedFyValue]);
+  }, [selectedFyValue, lockVersion]);
+
+  const handleFyChange = (val: string) => {
+    if (setFy) setFy(val);
+    const defaultMon = val.includes('2026') ? 'Oct' : 'Apr';
+    if (setMonth) setMonth(defaultMon);
+    updateQueryParams({ fy: val, month: defaultMon });
+  };
+
+  const handleMonthChange = (val: string) => {
+    if (setMonth) setMonth(val);
+    updateQueryParams({ month: val });
+  };
 
   return (
     <div className={`heading-template-wrapper ${className}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -160,13 +178,8 @@ export default function HeadingTemplate({
           <select
             className="gstr1-select-field"
             value={selectedFyValue}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (setFy) setFy(val);
-              updateQueryParams({ fy: val });
-            }}
+            onChange={(e) => handleFyChange(e.target.value)}
           >
-            <option value="ALL">All FY</option>
             {allFyOptions.map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
@@ -188,11 +201,7 @@ export default function HeadingTemplate({
           <select
             className="gstr1-select-field"
             value={selectedMonthValue}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (setMonth) setMonth(val);
-              updateQueryParams({ month: val });
-            }}
+            onChange={(e) => handleMonthChange(e.target.value)}
           >
             {dynamicMonthOptions.map((m) => (
               <option key={m.value} value={m.value}>{m.label}</option>

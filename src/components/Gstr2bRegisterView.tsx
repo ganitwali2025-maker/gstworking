@@ -15,6 +15,12 @@ import {
   clearRegisterRows,
   mapRowToSheetRow
 } from '../services/registerService';
+import {
+  isWorkingMonthLocked,
+  setWorkingMonthLock,
+  parseWorkingMonth,
+  GST_LOCK_CHANGED_EVENT
+} from '../services/lockService';
 
 const ALL_FY_MONTH_ORDER = [
   'Apr-2026', 'May-2026', 'Jun-2026', 'Jul-2026', 'Aug-2026', 'Sep-2026',
@@ -144,13 +150,17 @@ export default function Gstr2bRegisterView({
     }
   });
 
-  const [isLocked, setIsLocked] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('gstr2b_locked_v1') === '1';
-    } catch {
-      return false;
-    }
-  });
+  const currentWorkingMonth = parseWorkingMonth(month, fy);
+  const [isLocked, setIsLocked] = useState<boolean>(() => isWorkingMonthLocked(currentWorkingMonth));
+
+  useEffect(() => {
+    setIsLocked(isWorkingMonthLocked(currentWorkingMonth));
+    const handleLockEvt = () => {
+      setIsLocked(isWorkingMonthLocked(currentWorkingMonth));
+    };
+    window.addEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+    return () => window.removeEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+  }, [currentWorkingMonth]);
 
   const [editingRecord, setEditingRecord] = useState<Gstr2bRecord | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -452,9 +462,10 @@ export default function Gstr2bRegisterView({
         message: `Kya aap ${periodDesc} ke GSTR-2B records ko lock karna chahte hain? Lock hone par edit/delete nahi ho sakega.`,
         confirmLabel: 'Lock Sheet',
         onConfirm: async () => {
+          setWorkingMonthLock(currentWorkingMonth, true);
           setIsLocked(true);
           try { localStorage.setItem('gstr2b_locked_v1', '1'); } catch {}
-          notify('Sheet locked successfully');
+          notify(`Sheet locked successfully for ${currentWorkingMonth}`);
 
           const idsToLock = displayRecords.map((r) => r.id);
           try {
@@ -473,9 +484,10 @@ export default function Gstr2bRegisterView({
         message: `Kya aap sheet ko unlock karna chahte hain?`,
         confirmLabel: 'Unlock Sheet',
         onConfirm: async () => {
+          setWorkingMonthLock(currentWorkingMonth, false);
           setIsLocked(false);
           try { localStorage.setItem('gstr2b_locked_v1', '0'); } catch {}
-          notify('Sheet unlocked successfully');
+          notify(`Sheet unlocked successfully for ${currentWorkingMonth}`);
 
           const idsToUnlock = displayRecords.map((r) => r.id);
           try {

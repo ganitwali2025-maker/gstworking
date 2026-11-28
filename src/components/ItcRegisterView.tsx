@@ -13,6 +13,12 @@ import {
   clearRegisterRows,
   mapRowToSheetRow
 } from '../services/registerService';
+import {
+  isWorkingMonthLocked,
+  setWorkingMonthLock,
+  parseWorkingMonth,
+  GST_LOCK_CHANGED_EVENT
+} from '../services/lockService';
 
 export interface ItcPurchaseRecord {
   id: string;
@@ -128,13 +134,17 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
     }
   });
 
-  const [isLocked, setIsLocked] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('itc_locked_v1') === '1';
-    } catch {
-      return false;
-    }
-  });
+  const currentWorkingMonth = parseWorkingMonth(month, fy);
+  const [isLocked, setIsLocked] = useState<boolean>(() => isWorkingMonthLocked(currentWorkingMonth));
+
+  useEffect(() => {
+    setIsLocked(isWorkingMonthLocked(currentWorkingMonth));
+    const handleLockEvt = () => {
+      setIsLocked(isWorkingMonthLocked(currentWorkingMonth));
+    };
+    window.addEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+    return () => window.removeEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+  }, [currentWorkingMonth]);
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -335,9 +345,10 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
         message: `Kya aap ${periodDesc} ke records ko lock karna chahte hain? Lock hone par edit/delete nahi ho sakega.`,
         confirmLabel: 'Lock Sheet',
         onConfirm: async () => {
+          setWorkingMonthLock(currentWorkingMonth, true);
           setIsLocked(true);
           try { localStorage.setItem('itc_locked_v1', '1'); } catch { }
-          showToast('Sheet locked successfully');
+          showToast(`Sheet locked successfully for ${currentWorkingMonth}`);
 
           const idsToLock = displayRecords.map((r) => r.id);
           try {
@@ -356,9 +367,10 @@ export default function ItcRegisterView({ showToast, fy, setFy, month, setMonth 
         message: `Kya aap sheet ko unlock karna chahte hain?`,
         confirmLabel: 'Unlock Sheet',
         onConfirm: async () => {
+          setWorkingMonthLock(currentWorkingMonth, false);
           setIsLocked(false);
           try { localStorage.setItem('itc_locked_v1', '0'); } catch { }
-          showToast('Sheet unlocked successfully');
+          showToast(`Sheet unlocked successfully for ${currentWorkingMonth}`);
 
           const idsToUnlock = displayRecords.map((r) => r.id);
           try {

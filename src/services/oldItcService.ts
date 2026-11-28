@@ -1,4 +1,4 @@
-import { cleanStr, cleanInv, round2, ALL_FY_MONTHS } from './recoSyncService';
+import { cleanStr, cleanInv, round2, ALL_FY_MONTHS, getFyMonthList } from './recoSyncService';
 import { loadRegisterRows, REGISTER_TABS } from './registerService';
 import defaultRegisters from '../data/defaultRegisters.json';
 
@@ -81,8 +81,9 @@ export function saveOldItcPool(items: OldItcItem[], emitEvent: boolean = false):
  * Calculates how many months have passed between originalMonth and workingMonth
  */
 export function calculatePendingMonths(originalMonth: string, workingMonth: string): number {
-  const origIdx = ALL_FY_MONTHS.findIndex((m) => m.value === originalMonth);
-  const workIdx = ALL_FY_MONTHS.findIndex((m) => m.value === workingMonth);
+  const monthList = getFyMonthList(workingMonth);
+  const origIdx = monthList.findIndex((m) => m.value === originalMonth);
+  const workIdx = monthList.findIndex((m) => m.value === workingMonth);
   if (origIdx === -1 || workIdx === -1 || workIdx < origIdx) return 1;
   return workIdx - origIdx + 1;
 }
@@ -131,8 +132,9 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
     if (aRaw) auditNotes = JSON.parse(aRaw);
   } catch {}
 
-  const currentMonthIdx = ALL_FY_MONTHS.findIndex((m) => m.value === workingMonth);
-  const effectiveMonthIdx = currentMonthIdx === -1 ? 6 : currentMonthIdx; // Oct-2026 is idx 6
+  const fyMonthList = getFyMonthList(workingMonth);
+  const currentMonthIdx = fyMonthList.findIndex((m) => m.value === workingMonth);
+  const effectiveMonthIdx = currentMonthIdx === -1 ? 6 : currentMonthIdx;
 
   // 2. Identify earlier months' Books invoices (Oct, Sep, Aug, Jul, etc.)
   // Parse month for each book row
@@ -151,7 +153,9 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
         return `${MONTHS[m] || 'Oct'}-${parts[2]}`;
       }
     }
-    return (r.m ? `${r.m}-2026` : 'Oct-2026');
+    const yrMatch = workingMonth.match(/\b(20\d\d)\b/);
+    const yr = yrMatch ? yrMatch[1] : '2026';
+    return (r.m ? `${r.m}-${yr}` : workingMonth);
   };
 
   const currentPool = getOldItcPool();
@@ -162,15 +166,12 @@ export function syncOldItcPool(workingMonth: string = 'Oct-2026', itcClaimLastDa
     itcClaimLastDate && new Date().toISOString().slice(0, 10) > itcClaimLastDate.trim()
   );
 
-  // We consider all earlier months up to (and including) previous month of working month,
-  // OR if working month is Oct-2026, September/August/etc. carry forward into Old ITC.
-  // Also if working month is Nov-2026, Oct-2026 unmatched Books invoices carry forward.
+  // We consider all earlier months up to (and including) previous month of working month
   booksRows.forEach((b: any) => {
     const bMonth = parseRowMonth(b);
-    const bMonthIdx = ALL_FY_MONTHS.findIndex((m) => m.value === bMonth);
+    const bMonthIdx = fyMonthList.findIndex((m) => m.value === bMonth);
 
     // Rule: Only earlier months than workingMonth go into Old ITC carry forward
-    // (If user opened Nov, Oct goes into Old ITC. If user is in Oct, Sep/Aug/etc. go into Old ITC)
     const isEarlierMonth = bMonthIdx !== -1 && bMonthIdx < effectiveMonthIdx;
     
     // Also if this invoice was already in the pool, keep it

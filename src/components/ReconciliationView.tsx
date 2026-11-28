@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { getQueryParams, updateQueryParams } from '../utils/router';
 import defaultRegisters from '../data/defaultRegisters.json';
 import { loadRegisterRows, saveRegisterRow, REGISTER_TABS } from '../services/registerService';
+import { GST_LOCK_CHANGED_EVENT, GST_LOCKS_STORAGE_KEY } from '../services/lockService';
 
 // ==========================================
 // Types & Interfaces
@@ -577,6 +578,17 @@ export default function ReconciliationView({
 
   const currentLock = locks[workingMonth];
   const isLocked = Boolean(currentLock?.isLocked);
+
+  useEffect(() => {
+    const handleLockEvt = () => {
+      try {
+        const raw = localStorage.getItem('gst_reco_locks_v1');
+        setLocks(raw ? JSON.parse(raw) : {});
+      } catch {}
+    };
+    window.addEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+    return () => window.removeEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+  }, []);
 
   // Modals state
   const [viewingRecord, setViewingRecord] = useState<ReconciledInvoice | null>(null);
@@ -1623,6 +1635,7 @@ export default function ReconciliationView({
               user: userName
             });
             localStorage.setItem('gst_reco_lock_logs_v1', JSON.stringify(logs));
+            window.dispatchEvent(new CustomEvent(GST_LOCK_CHANGED_EVENT, { detail: { workingMonth, locked: true } }));
           } catch { }
 
           showToast(`${workingMonth} reconciliation locked successfully.`);
@@ -1658,6 +1671,7 @@ export default function ReconciliationView({
               user: userName
             });
             localStorage.setItem('gst_reco_lock_logs_v1', JSON.stringify(logs));
+            window.dispatchEvent(new CustomEvent(GST_LOCK_CHANGED_EVENT, { detail: { workingMonth, locked: false } }));
           } catch { }
 
           showToast(`${workingMonth} reconciliation unlocked.`);
@@ -3284,25 +3298,31 @@ export default function ReconciliationView({
                 </button>
                 <button
                   type="button"
+                  disabled={isLocked}
                   onClick={() => handleSaveAudit()}
                   style={{
                     height: '42px',
                     padding: '0 22px',
                     borderRadius: '8px',
-                    background: '#15803D',
+                    background: isLocked ? '#94a3b8' : '#15803D',
                     color: '#ffffff',
                     border: 'none',
                     fontSize: '13px',
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: isLocked ? 'not-allowed' : 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(21, 128, 61, 0.25)',
+                    boxShadow: isLocked ? 'none' : '0 2px 8px rgba(21, 128, 61, 0.25)',
+                    opacity: isLocked ? 0.6 : 1,
                     transition: 'all 0.15s ease'
                   }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#166534'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = '#15803D'}
+                  onMouseEnter={(e) => {
+                    if (!isLocked) e.currentTarget.style.background = '#166534';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isLocked) e.currentTarget.style.background = '#15803D';
+                  }}
                 >
                   Save Audit
                 </button>

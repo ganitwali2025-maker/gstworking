@@ -3,6 +3,7 @@ import { StepItem, ViewType } from '../types/gst';
 import RegisterPeriodBar from './RegisterPeriodBar';
 import { useLiveReconciliation } from '../services/recoSyncService';
 import { syncOldItcPool } from '../services/oldItcService';
+import { parseWorkingMonth } from '../services/lockService';
 
 interface WorkingStepsViewProps {
   steps: StepItem[];
@@ -14,7 +15,7 @@ interface WorkingStepsViewProps {
 }
 
 function formatInr(val: number): string {
-  if (isNaN(val)) return '0.00';
+  if (val === null || val === undefined || isNaN(val)) return '0.00';
   return val.toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
@@ -31,27 +32,7 @@ export default function WorkingStepsView({
   const [oldItcVersion, setOldItcVersion] = useState(0);
 
   const workingMonth = useMemo(() => {
-    let year = '2026';
-    if (fy) {
-      const match = fy.replace(/[^0-9]/g, '').slice(0, 4);
-      if (match) year = match;
-    }
-    let m = (month || '').trim();
-    if (!m || m.toUpperCase() === 'ALL') {
-      m = 'Oct';
-    }
-    const MONTH_MAP: Record<string, string> = {
-      jan: 'Jan', january: 'Jan', feb: 'Feb', february: 'Feb',
-      mar: 'Mar', march: 'Mar', apr: 'Apr', april: 'Apr',
-      may: 'May', jun: 'Jun', june: 'Jun', jul: 'Jul', july: 'Jul',
-      aug: 'Aug', august: 'Aug', sep: 'Sep', sept: 'Sep', september: 'Sep',
-      oct: 'Oct', october: 'Oct', nov: 'Nov', november: 'Nov', dec: 'Dec'
-    };
-    const stdMonth = MONTH_MAP[m.toLowerCase()] || (m ? m.charAt(0).toUpperCase() + m.slice(1, 3) : 'Oct');
-    if (['Jan', 'Feb', 'Mar'].includes(stdMonth) && year === '2026') {
-      year = '2027';
-    }
-    return `${stdMonth}-${year}`;
+    return parseWorkingMonth(month, fy);
   }, [fy, month]);
 
   // Live one-way sync with Reco sheet
@@ -168,7 +149,12 @@ export default function WorkingStepsView({
         <div className="steps-cards-grid">
           {/* Steps 1 to 4 */}
           {primarySteps.map((s, index) => (
-            <div key={s.id} className={`step-card ${s.done ? 'step-done' : ''}`}>
+            <div
+              key={s.id}
+              className={`step-card ${s.done ? 'step-done' : ''}`}
+              onClick={() => handleOpenModule(index, s.titleEn)}
+              style={{ cursor: 'pointer' }}
+            >
               <div className="step-card-header">
                 <div className="step-card-icon-box" title={s.titleEn}>
                   {getStepIcon(index)}
@@ -194,7 +180,10 @@ export default function WorkingStepsView({
               <div className="step-card-footer">
                 <span
                   className="step-workplace-link"
-                  onClick={() => handleOpenModule(index, s.titleEn)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenModule(index, s.titleEn);
+                  }}
                   role="button"
                   tabIndex={0}
                 >
@@ -203,7 +192,10 @@ export default function WorkingStepsView({
                 <button
                   type="button"
                   className="step-action-btn btn-add-data"
-                  onClick={() => handleOpenModule(index, s.titleEn)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenModule(index, s.titleEn);
+                  }}
                   style={{
                     background: 'linear-gradient(135deg, #4c1d95 0%, #3b0764 100%)',
                     color: '#ffffff',
@@ -230,7 +222,11 @@ export default function WorkingStepsView({
              ========================================================= */}
 
           {/* CARD 1: ITC Reconciliation (Step 5) */}
-          <div className={`step-card ${step5.done ? 'step-done' : ''}`}>
+          <div
+            className={`step-card ${step5.done ? 'step-done' : ''}`}
+            onClick={() => setView('rec')}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="step-card-header">
               <div className="step-card-icon-box" title={step5.titleEn}>
                 {getStepIcon(4)}
@@ -245,7 +241,10 @@ export default function WorkingStepsView({
             <div className="step-card-footer">
               <span
                 className="step-workplace-link"
-                onClick={() => setView('rec')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('rec');
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -254,7 +253,10 @@ export default function WorkingStepsView({
               <button
                 type="button"
                 className="step-action-btn btn-reconcile"
-                onClick={() => setView('rec')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('rec');
+                }}
                 style={{
                   background: 'linear-gradient(135deg, #4c1d95 0%, #3b0764 100%)',
                   color: '#ffffff',
@@ -270,7 +272,11 @@ export default function WorkingStepsView({
           </div>
 
           {/* CARD 2: Old ITC - Carried Forward (NAYA, violet #6D28D9) */}
-          <div className="step-card step-card-violet">
+          <div
+            className="step-card step-card-violet"
+            onClick={() => setView('old-itc')}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="step-card-header">
               <div className="step-card-icon-box icon-violet" title="Old ITC - Carried Forward">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6D28D9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -300,7 +306,10 @@ export default function WorkingStepsView({
             <div className="step-card-footer">
               <span
                 className="step-workplace-link"
-                onClick={() => setView('old-itc')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('old-itc');
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -309,7 +318,10 @@ export default function WorkingStepsView({
               <button
                 type="button"
                 className="step-action-btn"
-                onClick={() => setView('old-itc')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('old-itc');
+                }}
                 style={{
                   background: 'linear-gradient(135deg, #4c1d95 0%, #3b0764 100%)',
                   color: '#ffffff',
@@ -325,7 +337,11 @@ export default function WorkingStepsView({
           </div>
 
           {/* CARD 3: Matched Invoices - ITC Verified (purana, dark green) */}
-          <div className="step-card step-card-green">
+          <div
+            className="step-card step-card-green"
+            onClick={() => setView('reco-matched')}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="step-card-header">
               <div className="step-card-icon-box icon-green" title="Matched Invoices – ITC Verified">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -352,7 +368,10 @@ export default function WorkingStepsView({
             <div className="step-card-footer">
               <span
                 className="step-workplace-link"
-                onClick={() => setView('reco-matched')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('reco-matched');
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -361,7 +380,10 @@ export default function WorkingStepsView({
               <button
                 type="button"
                 className="step-action-btn btn-green"
-                onClick={() => setView('reco-matched')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('reco-matched');
+                }}
                 style={{
                   background: 'linear-gradient(135deg, #14532d 0%, #166534 100%)',
                   color: '#ffffff',
@@ -377,7 +399,11 @@ export default function WorkingStepsView({
           </div>
 
           {/* CARD 4: Not Claim ITC (NAYA, gehra laal #7F1D1D) */}
-          <div className="step-card step-card-darkred">
+          <div
+            className="step-card step-card-darkred"
+            onClick={() => setView('not-claim-itc')}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="step-card-header">
               <div className="step-card-icon-box icon-darkred" title="Not Claim ITC">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7F1D1D" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -408,7 +434,10 @@ export default function WorkingStepsView({
             <div className="step-card-footer">
               <span
                 className="step-workplace-link"
-                onClick={() => setView('not-claim-itc')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('not-claim-itc');
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -417,7 +446,10 @@ export default function WorkingStepsView({
               <button
                 type="button"
                 className="step-action-btn btn-darkred"
-                onClick={() => setView('not-claim-itc')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('not-claim-itc');
+                }}
                 style={{
                   background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
                   color: '#ffffff',
@@ -433,7 +465,11 @@ export default function WorkingStepsView({
           </div>
 
           {/* CARD 5: Not in Purchase Register (purana, dark red) */}
-          <div className="step-card step-card-red">
+          <div
+            className="step-card step-card-red"
+            onClick={() => setView('reco-missing-books')}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="step-card-header">
               <div className="step-card-icon-box icon-red" title="Not in Purchase Register">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7f1d1d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -462,7 +498,10 @@ export default function WorkingStepsView({
             <div className="step-card-footer">
               <span
                 className="step-workplace-link"
-                onClick={() => setView('reco-missing-books')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('reco-missing-books');
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -471,7 +510,10 @@ export default function WorkingStepsView({
               <button
                 type="button"
                 className="step-action-btn btn-red"
-                onClick={() => setView('reco-missing-books')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('reco-missing-books');
+                }}
                 style={{
                   background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
                   color: '#ffffff',
@@ -487,7 +529,11 @@ export default function WorkingStepsView({
           </div>
 
           {/* CARD 6: Not in GSTR-2B (purana, dark red) */}
-          <div className="step-card step-card-red">
+          <div
+            className="step-card step-card-red"
+            onClick={() => setView('reco-missing-2b')}
+            style={{ cursor: 'pointer' }}
+          >
             <div className="step-card-header">
               <div className="step-card-icon-box icon-red" title="Not in GSTR-2B">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7f1d1d" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -515,7 +561,10 @@ export default function WorkingStepsView({
             <div className="step-card-footer">
               <span
                 className="step-workplace-link"
-                onClick={() => setView('reco-missing-2b')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('reco-missing-2b');
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -524,7 +573,10 @@ export default function WorkingStepsView({
               <button
                 type="button"
                 className="step-action-btn btn-red"
-                onClick={() => setView('reco-missing-2b')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setView('reco-missing-2b');
+                }}
                 style={{
                   background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)',
                   color: '#ffffff',

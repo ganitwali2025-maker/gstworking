@@ -7,6 +7,7 @@ import {
   OldItcItem
 } from '../services/oldItcService';
 import { cleanInv } from '../services/recoSyncService';
+import { isWorkingMonthLocked, GST_LOCK_CHANGED_EVENT } from '../services/lockService';
 
 interface OldItcDetailSheetProps {
   onBack: () => void;
@@ -15,7 +16,7 @@ interface OldItcDetailSheetProps {
 }
 
 function formatInr(val: number): string {
-  if (isNaN(val)) return '0.00';
+  if (val === null || val === undefined || isNaN(val)) return '0.00';
   return val.toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
@@ -39,6 +40,15 @@ export default function OldItcDetailSheet({
   const [auditItem, setAuditItem] = useState<OldItcItem | null>(null);
   const [auditStatus, setAuditStatus] = useState<string>('Pending');
   const [auditNote, setAuditNote] = useState<string>('');
+
+  const [isLocked, setIsLocked] = useState<boolean>(() => isWorkingMonthLocked(workingMonth));
+
+  useEffect(() => {
+    setIsLocked(isWorkingMonthLocked(workingMonth));
+    const handleLockEvt = () => setIsLocked(isWorkingMonthLocked(workingMonth));
+    window.addEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+    return () => window.removeEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+  }, [workingMonth]);
 
   // Sync Old ITC pool
   const syncResult = useMemo(() => {
@@ -146,6 +156,10 @@ export default function OldItcDetailSheet({
 
   // Move to Not Claim handler
   const handleMoveToNotClaim = (item: OldItcItem) => {
+    if (isLocked) {
+      showToast('This month is locked. Cannot move invoices.');
+      return;
+    }
     if (window.confirm(`Move Invoice "${item.invNo}" (${item.supplierName}) to Not Claim ITC?`)) {
       moveToNotClaim(item.id, 'Manually moved by user to Not Claim ITC');
       showToast(`Invoice "${item.invNo}" moved to Not Claim ITC.`);
@@ -162,6 +176,10 @@ export default function OldItcDetailSheet({
 
   // Save Audit Note
   const handleSaveAudit = () => {
+    if (isLocked) {
+      showToast('This month is locked. Audit notes cannot be changed.');
+      return;
+    }
     if (!auditItem) return;
     updateOldItcAudit(auditItem.id, auditStatus, auditNote);
     showToast(`Audit updated for Invoice ${auditItem.invNo}`);
@@ -1027,18 +1045,20 @@ export default function OldItcDetailSheet({
                         {!isClaimed && (
                           <button
                             type="button"
+                            disabled={isLocked}
                             onClick={() => handleMoveToNotClaim(item)}
                             style={{
-                              background: '#fef2f2',
-                              color: '#b91c1c',
-                              border: '1px solid #fecaca',
+                              background: isLocked ? '#f1f5f9' : '#fef2f2',
+                              color: isLocked ? '#94a3b8' : '#b91c1c',
+                              border: isLocked ? '1px solid #cbd5e1' : '1px solid #fecaca',
                               padding: '3px 7px',
                               fontSize: '11px',
                               fontWeight: 700,
-                              cursor: 'pointer',
-                              borderRadius: 0
+                              cursor: isLocked ? 'not-allowed' : 'pointer',
+                              borderRadius: 0,
+                              opacity: isLocked ? 0.6 : 1
                             }}
-                            title="Move to Not Claim ITC"
+                            title={isLocked ? 'Month locked - action disabled' : 'Move to Not Claim ITC'}
                           >
                             Not Claim
                           </button>
@@ -1810,25 +1830,31 @@ export default function OldItcDetailSheet({
                 </button>
                 <button
                   type="button"
+                  disabled={isLocked}
                   onClick={handleSaveAudit}
                   style={{
                     height: '42px',
                     padding: '0 22px',
                     borderRadius: '8px',
-                    background: '#15803D',
+                    background: isLocked ? '#94a3b8' : '#15803D',
                     color: '#ffffff',
                     border: 'none',
                     fontSize: '13px',
                     fontWeight: 700,
-                    cursor: 'pointer',
+                    cursor: isLocked ? 'not-allowed' : 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    boxShadow: '0 2px 8px rgba(21, 128, 61, 0.25)',
+                    boxShadow: isLocked ? 'none' : '0 2px 8px rgba(21, 128, 61, 0.25)',
+                    opacity: isLocked ? 0.6 : 1,
                     transition: 'all 0.15s ease'
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#166534')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = '#15803D')}
+                  onMouseEnter={(e) => {
+                    if (!isLocked) e.currentTarget.style.background = '#166534';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isLocked) e.currentTarget.style.background = '#15803D';
+                  }}
                 >
                   Save Audit
                 </button>

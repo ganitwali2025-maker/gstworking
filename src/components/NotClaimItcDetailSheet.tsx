@@ -6,6 +6,7 @@ import {
   updateOldItcAudit,
   OldItcItem
 } from '../services/oldItcService';
+import { isWorkingMonthLocked, GST_LOCK_CHANGED_EVENT } from '../services/lockService';
 
 interface NotClaimItcDetailSheetProps {
   onBack: () => void;
@@ -14,7 +15,7 @@ interface NotClaimItcDetailSheetProps {
 }
 
 function formatInr(val: number): string {
-  if (isNaN(val)) return '0.00';
+  if (val === null || val === undefined || isNaN(val)) return '0.00';
   return val.toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
@@ -37,6 +38,15 @@ export default function NotClaimItcDetailSheet({
   const [auditItem, setAuditItem] = useState<OldItcItem | null>(null);
   const [auditStatus, setAuditStatus] = useState<string>('Pending');
   const [auditNote, setAuditNote] = useState<string>('');
+
+  const [isLocked, setIsLocked] = useState<boolean>(() => isWorkingMonthLocked(workingMonth));
+
+  useEffect(() => {
+    setIsLocked(isWorkingMonthLocked(workingMonth));
+    const handleLockEvt = () => setIsLocked(isWorkingMonthLocked(workingMonth));
+    window.addEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+    return () => window.removeEventListener(GST_LOCK_CHANGED_EVENT, handleLockEvt);
+  }, [workingMonth]);
 
   // Sync Old ITC pool
   const syncResult = useMemo(() => {
@@ -107,6 +117,10 @@ export default function NotClaimItcDetailSheet({
 
   // Move back to Old ITC handler
   const handleMoveBack = (item: OldItcItem) => {
+    if (isLocked) {
+      showToast('This month is locked. Cannot move invoices.');
+      return;
+    }
     if (window.confirm(`Move Invoice "${item.invNo}" back to Old ITC pool for re-checking?`)) {
       moveBackToOldItc(item.id);
       showToast(`Invoice "${item.invNo}" moved back to Old ITC.`);
@@ -123,6 +137,10 @@ export default function NotClaimItcDetailSheet({
 
   // Save Audit Note
   const handleSaveAudit = () => {
+    if (isLocked) {
+      showToast('This month is locked. Audit notes cannot be changed.');
+      return;
+    }
     if (!auditItem) return;
     updateOldItcAudit(auditItem.id, auditStatus, auditNote);
     showToast(`Audit updated for Invoice ${auditItem.invNo}`);
@@ -914,18 +932,20 @@ export default function NotClaimItcDetailSheet({
                         </button>
                         <button
                           type="button"
+                          disabled={isLocked}
                           onClick={() => handleMoveBack(item)}
                           style={{
-                            background: '#f5f3ff',
-                            color: '#6D28D9',
-                            border: '1px solid #ddd6fe',
+                            background: isLocked ? '#f1f5f9' : '#f5f3ff',
+                            color: isLocked ? '#94a3b8' : '#6D28D9',
+                            border: isLocked ? '1px solid #cbd5e1' : '1px solid #ddd6fe',
                             padding: '3px 7px',
                             fontSize: '11px',
                             fontWeight: 700,
-                            cursor: 'pointer',
-                            borderRadius: 0
+                            cursor: isLocked ? 'not-allowed' : 'pointer',
+                            borderRadius: 0,
+                            opacity: isLocked ? 0.6 : 1
                           }}
-                          title="Restore back to Old ITC"
+                          title={isLocked ? 'Month locked - action disabled' : 'Restore back to Old ITC'}
                         >
                           To Old ITC
                         </button>
@@ -1207,16 +1227,18 @@ export default function NotClaimItcDetailSheet({
               </button>
               <button
                 type="button"
+                disabled={isLocked}
                 onClick={handleSaveAudit}
                 style={{
-                  background: '#7F1D1D',
+                  background: isLocked ? '#94a3b8' : '#7F1D1D',
                   color: '#ffffff',
                   border: 'none',
                   padding: '8px 20px',
                   fontSize: '13px',
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  borderRadius: 0
+                  cursor: isLocked ? 'not-allowed' : 'pointer',
+                  borderRadius: 0,
+                  opacity: isLocked ? 0.6 : 1
                 }}
               >
                 Save Audit
